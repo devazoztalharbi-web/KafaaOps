@@ -2,7 +2,6 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { canonical, dataDir, hashPassword, hmac, sha256 } from "./crypto";
-import { eachDate, periodContaining, riyadhParts } from "./time";
 
 export type Role =
   | "PLATFORM_ADMIN"
@@ -396,25 +395,6 @@ function seed(database: DatabaseSync) {
     )
     .run(companyId, "تضاريس نجد للحراسات الأمنية", "Najd Terrain Security", "NAJD-TNS", now);
 
-  const ids = {
-    platform: crypto.randomUUID(),
-    tech: crypto.randomUUID(),
-    hr: crypto.randomUUID(),
-    manager: crypto.randomUUID(),
-    supervisor: crypto.randomUUID(),
-    guard: crypto.randomUUID(),
-  };
-  const insertUser = database.prepare(
-    `INSERT INTO users
-     (id, company_id, email, name_ar, name_en, password_hash, role, status, employee_no, manager_id, shift_no, site_id, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?, ?, ?)`,
-  );
-  insertUser.run(ids.platform, null, "admin@kafaaops.sa", "مدير المنصة", "Platform admin", password, "PLATFORM_ADMIN", null, null, null, null, now);
-  insertUser.run(ids.tech, companyId, "devabulaziz@outlook.com", "المسؤول التقني", "Technical admin", password, "TECH_ADMIN", "T-001", null, null, null, now);
-  insertUser.run(ids.hr, companyId, "hr@kafaaops.local", "الموارد البشرية", "Human resources", password, "HR", "H-001", null, null, null, now);
-  insertUser.run(ids.manager, companyId, "manager@kafaaops.local", "مدير الأمن", "Security manager", password, "SECURITY_MANAGER", "S-001", null, null, null, now);
-  insertUser.run(ids.supervisor, companyId, "supervisor@kafaaops.local", "مشرف الوردية", "Shift supervisor", password, "SUPERVISOR", "P-001", ids.manager, 1, null, now);
-
   const complexId = crypto.randomUUID();
   const siteId = crypto.randomUUID();
   database
@@ -429,7 +409,14 @@ function seed(database: DatabaseSync) {
        VALUES (?, ?, ?, 'SITE', ?, ?, ?, ?, 180, 1)`,
     )
     .run(siteId, companyId, complexId, "بوابة العليا", "Olaya gate", 24.711, 46.675);
-  insertUser.run(ids.guard, companyId, "guard@kafaaops.local", "حارس الأمن", "Security guard", password, "GUARD", "G-001", ids.supervisor, 1, siteId, now);
+
+  database
+    .prepare(
+      `INSERT INTO users
+       (id, company_id, email, name_ar, name_en, password_hash, role, status, employee_no, manager_id, shift_no, site_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'TECH_ADMIN', 'ACTIVE', 'T-001', NULL, NULL, NULL, ?)`,
+    )
+    .run(crypto.randomUUID(), companyId, "devabulaziz@outlook.com", "المسؤول التقني", "Technical admin", password, now);
 
   const insertShift = database.prepare(
     `INSERT INTO shifts (id, company_id, shift_no, start_minute, end_minute, grace_minute) VALUES (?, ?, ?, ?, ?, 15)`,
@@ -437,17 +424,6 @@ function seed(database: DatabaseSync) {
   insertShift.run(crypto.randomUUID(), companyId, 1, 7 * 60, 15 * 60);
   insertShift.run(crypto.randomUUID(), companyId, 2, 15 * 60, 23 * 60);
   insertShift.run(crypto.randomUUID(), companyId, 3, 23 * 60, 7 * 60);
-
-  const period = periodContaining();
-  const insertSchedule = database.prepare(
-    `INSERT INTO schedules (id, company_id, user_id, work_date, kind) VALUES (?, ?, ?, ?, ?)`,
-  );
-  for (const userId of [ids.guard, ids.supervisor]) {
-    for (const date of eachDate(period.start, period.end)) {
-      const weekday = riyadhParts(new Date(`${date}T12:00:00+03:00`)).weekday;
-      insertSchedule.run(crypto.randomUUID(), companyId, userId, date, weekday === "Fri" ? "REST" : "DUTY");
-    }
-  }
 }
 
 export function appendChain(

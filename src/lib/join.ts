@@ -68,24 +68,46 @@ export function listPending(actor: SessionUser) {
   );
 }
 
-export function approveJoin(actor: SessionUser, input: { userId: string; siteId: string; shiftNo: number; managerId: string }) {
+const joinRoles = ["SECURITY_MANAGER", "SUPERVISOR", "GUARD", "HR"] as const;
+type JoinRole = (typeof joinRoles)[number];
+
+export function approveJoin(actor: SessionUser, input: { userId: string; siteId: string; shiftNo: number; managerId: string; role?: string }) {
   if (!canApproveJoin(actor) || !actor.companyId) return { error: "err_permission" as const };
-  if (![1, 2, 3].includes(input.shiftNo)) return { error: "err_join" as const };
+  const role: JoinRole = joinRoles.includes(input.role as JoinRole) ? (input.role as JoinRole) : "GUARD";
+  if (role !== "GUARD" && actor.role !== "TECH_ADMIN") return { error: "err_permission" as const };
   const person = one<{ id: string }>("SELECT id FROM users WHERE id = ? AND company_id = ? AND status = 'PENDING'", input.userId, actor.companyId);
+  if (!person) return { error: "err_join" as const };
+  const stamp = String(Date.now()).slice(-6);
+  const activate = (employeeNo: string, siteId: string | null, shiftNo: number | null, managerId: string | null) => {
+    run(
+      "UPDATE users SET status = 'ACTIVE', role = ?, site_id = ?, shift_no = ?, manager_id = ?, employee_no = ? WHERE id = ?",
+      role,
+      siteId,
+      shiftNo,
+      managerId,
+      employeeNo,
+      person.id,
+    );
+    audit(actor.companyId!, actor.id, "join.approve", "user", person.id, { role, siteId, shiftNo });
+    return { employeeNo };
+  };
+  if (role === "HR") return activate(`H-${stamp}`, null, null, null);
   const site = one<{ id: string }>("SELECT id FROM sites WHERE id = ? AND company_id = ? AND kind = 'SITE' AND active = 1", input.siteId, actor.companyId);
-  const manager = one<{ id: string }>("SELECT id FROM users WHERE id = ? AND company_id = ? AND role = 'SUPERVISOR' AND status = 'ACTIVE'", input.managerId, actor.companyId);
-  if (!person || !site || !manager) return { error: "err_join" as const };
-  const employeeNo = `G-${String(Date.now()).slice(-6)}`;
-  run(
-    "UPDATE users SET status = 'ACTIVE', site_id = ?, shift_no = ?, manager_id = ?, employee_no = ? WHERE id = ?",
-    site.id,
-    input.shiftNo,
-    manager.id,
-    employeeNo,
-    person.id,
+  if (!site) return { error: "err_join" as const };
+  if (role === "SECURITY_MANAGER") return activate(`S-${stamp}`, site.id, null, null);
+  if (role === "SUPERVISOR") {
+    if (![1, 2, 3].includes(input.shiftNo)) return { error: "err_join" as const };
+    const manager = one<{ id: string }>("SELECT id FROM users WHERE id = ? AND company_id = ? AND role = 'SECURITY_MANAGER' AND status = 'ACTIVE'", input.managerId, actor.companyId);
+    if (!manager) return { error: "err_join" as const };
+    return activate(`P-${stamp}`, site.id, input.shiftNo, manager.id);
+  }
+  const supervisor = one<{ id: string; shift_no: number | null }>(
+    "SELECT id, shift_no FROM users WHERE id = ? AND company_id = ? AND role = 'SUPERVISOR' AND status = 'ACTIVE'",
+    input.managerId,
+    actor.companyId,
   );
-  audit(actor.companyId, actor.id, "join.approve", "user", person.id, { siteId: site.id, shiftNo: input.shiftNo });
-  return { employeeNo };
+  if (!supervisor || supervisor.shift_no == null) return { error: "err_join" as const };
+  return activate(`G-${stamp}`, site.id, supervisor.shift_no, supervisor.id);
 }
 
 export function rejectJoin(actor: SessionUser, userId: string) {

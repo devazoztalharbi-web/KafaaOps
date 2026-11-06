@@ -255,6 +255,7 @@ export async function reviewJoinAction(formData: FormData) {
           siteId: String(formData.get("siteId") ?? ""),
           shiftNo: Number(formData.get("shiftNo")),
           managerId: String(formData.get("managerId") ?? ""),
+          role: String(formData.get("role") ?? "GUARD"),
         });
   redirect(`/app/people?e=${"error" in result ? result.error : "ok"}`);
 }
