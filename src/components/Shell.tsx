@@ -17,6 +17,7 @@ const links = [
   { href: "/app/permits", label: "التصاريح" },
   { href: "/app/alerts", label: "البلاغات" },
   { href: "/app/security", label: "فحص السجل" },
+  { href: "/app/info", label: "معلومات" },
 ];
 
 export function Shell({ user, children }: { user: SessionUser; children: React.ReactNode }) {
