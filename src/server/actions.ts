@@ -30,7 +30,13 @@ export async function loginAction(formData: FormData) {
   });
   if ("error" in result) redirect(`/enter?e=${result.error}`);
   const jar = await cookies();
-  jar.set("kafaa_session", result.token, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 12 });
+  jar.set("kafaa_session", result.token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 12,
+  });
   redirect("/app");
 }
 
@@ -110,14 +116,23 @@ export async function arrivalAction(formData: FormData) {
   redirect(`/app/attendance?e=${"error" in result ? result.error : "arrived"}`);
 }
 
+function readTypedNumber(value: FormDataEntryValue | null) {
+  const arabic = "٠١٢٣٤٥٦٧٨٩";
+  const text = String(value ?? "")
+    .trim()
+    .replace(/[٠-٩]/g, (digit) => String(arabic.indexOf(digit)))
+    .replace(/[،,]/g, ".");
+  return Number(text);
+}
+
 export async function fenceAction(formData: FormData) {
   const user = await currentUser();
   if (!user) redirect("/enter");
   const result = setSiteFence(user, {
     siteId: String(formData.get("siteId") ?? ""),
-    lat: Number(formData.get("lat")),
-    lng: Number(formData.get("lng")),
-    radius: Number(formData.get("radius")),
+    lat: readTypedNumber(formData.get("lat")),
+    lng: readTypedNumber(formData.get("lng")),
+    radius: readTypedNumber(formData.get("radius")),
   });
   redirect(`/app?e=${"error" in result ? result.error : "ok"}`);
 }
@@ -128,10 +143,9 @@ export async function placeAction(formData: FormData) {
   const result = addPlace(user, {
     name: String(formData.get("name") ?? ""),
     city: String(formData.get("city") ?? ""),
-    kind: String(formData.get("kind") ?? ""),
-    lat: Number(formData.get("lat")),
-    lng: Number(formData.get("lng")),
-    radius: Number(formData.get("radius")),
+    lat: readTypedNumber(formData.get("lat")),
+    lng: readTypedNumber(formData.get("lng")),
+    radius: readTypedNumber(formData.get("radius")),
   });
   redirect(`/app?e=${"error" in result ? result.error : "ok"}`);
 }

@@ -14,8 +14,8 @@ const roles: Record<string, string> = {
 };
 
 const capabilityLabels: Record<string, string> = {
-  approve_join: "قبول الموظفين",
-  edit_fence: "تعديل إحداثيات الموقع ومسافته",
+  approve_join: "قبول التسجيل",
+  edit_fence: "موقع البصمة",
 };
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ e?: string }> }) {
@@ -74,39 +74,59 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       {user.role === "TECH_ADMIN" ? (
         <div className="mt-6 space-y-4">
           <h2 className="font-semibold">المواقع</h2>
-          <p className="text-sm leading-7 text-ink/70">اكتب اسم المجمع أو السوق، والمدينة، وإحداثيات المكان مرة واحدة، والمسافة التي تُقبل البصمة داخلها. سين 1 والبوابة أسماء داخل المكان، بلا إحداثيات.</p>
-          <form action={placeAction} className="grid gap-3 rounded-2xl border border-line bg-card p-4 md:grid-cols-3">
-            <input name="name" required placeholder="اسم المجمع أو السوق" className="rounded-xl border border-line px-3 py-2" />
-            <input name="city" required placeholder="المدينة" className="rounded-xl border border-line px-3 py-2" />
-            <select name="kind" className="rounded-xl border border-line px-3 py-2">
-              <option value="مجمع">مجمع</option>
-              <option value="مجمع تجاري">مجمع تجاري</option>
-              <option value="سوق">سوق</option>
-              <option value="سوق تجاري">سوق تجاري</option>
-              <option value="موقع">موقع</option>
-            </select>
-            <input name="lat" required type="number" step="any" placeholder="خط العرض" className="rounded-xl border border-line px-3 py-2" />
-            <input name="lng" required type="number" step="any" placeholder="خط الطول" className="rounded-xl border border-line px-3 py-2" />
-            <input name="radius" required type="number" min={30} max={5000} placeholder="المسافة بالمتر، مثل 900" className="rounded-xl border border-line px-3 py-2" />
-            <button className="rounded-xl bg-ink px-3 py-2 text-paper md:col-span-3" type="submit">أضف المكان</button>
+          <p className="text-sm leading-7 text-ink/70">اكتب المدينة واسم المجمع مرة واحدة، ثم الطول والعرض، وتحتهم المسافة التي تُقبل داخلها بصمة بداية الدوام وسيلفي الوصول. أسماء النقاط داخل المجمع، مثل س1 أو زون 1، بلا إحداثيات.</p>
+          <form action={placeAction} className="grid max-w-xl gap-3 rounded-2xl border border-line bg-card p-4">
+            <label className="flex items-center gap-3 text-sm">
+              <span className="w-28 shrink-0 font-semibold">المدينة</span>
+              <input name="city" required placeholder="جدة" className="w-full rounded-xl border border-line px-3 py-2" />
+            </label>
+            <label className="flex items-center gap-3 text-sm">
+              <span className="w-28 shrink-0 font-semibold">اسم المجمع</span>
+              <input name="name" required placeholder="اكتب اسم المجمع" className="w-full rounded-xl border border-line px-3 py-2" />
+            </label>
+            <label className="flex items-center gap-3 text-sm">
+              <span className="w-28 shrink-0 font-semibold">الطول</span>
+              <input name="lng" required inputMode="decimal" placeholder="39.1728" className="w-full rounded-xl border border-line px-3 py-2" />
+            </label>
+            <label className="flex items-center gap-3 text-sm">
+              <span className="w-28 shrink-0 font-semibold">العرض</span>
+              <input name="lat" required inputMode="decimal" placeholder="21.5432" className="w-full rounded-xl border border-line px-3 py-2" />
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="font-semibold">المسافة المسموحة للبصمة والسيلفي (متر)</span>
+              <input name="radius" required inputMode="numeric" placeholder="900" className="rounded-xl border border-line px-3 py-2" />
+            </label>
+            <button className="rounded-xl bg-ink px-3 py-2 text-paper" type="submit">أضف الموقع</button>
           </form>
           {places.length ? (
             <ul className="space-y-2 text-sm">
-              {places.map((place) => <li key={place.id} className="rounded-xl border border-line bg-card px-4 py-2">{place.name_en} · {place.name_ar} · {place.city} · {place.radius_m ?? "—"} م</li>)}
+              {places.map((place) => <li key={place.id} className="rounded-xl border border-line bg-card px-4 py-2">{place.city} · {place.name_ar} · {place.radius_m ?? "—"} م</li>)}
             </ul>
           ) : <p className="text-sm">لا توجد أماكن بعد.</p>}
         </div>
       ) : null}
 
       {canEditFence && places.length ? (
-        <form action={fenceAction} className="mt-6 grid gap-3 rounded-2xl border border-line bg-card p-4 md:grid-cols-4">
-          <select name="siteId" className="rounded-xl border border-line px-3 py-2">
-            {places.map((place) => <option key={place.id} value={place.id}>{place.name_ar} · {place.radius_m ?? "—"} م</option>)}
-          </select>
-          <input name="lat" required type="number" step="any" placeholder="خط العرض" className="rounded-xl border border-line px-3 py-2" />
-          <input name="lng" required type="number" step="any" placeholder="خط الطول" className="rounded-xl border border-line px-3 py-2" />
-          <input name="radius" required type="number" min={30} max={5000} placeholder="المسافة بالمتر، مثل 900" className="rounded-xl border border-line px-3 py-2" />
-          <button className="rounded-xl bg-ink px-3 py-2 text-paper md:col-span-4" type="submit">احفظ إحداثيات المجمع ومسافته</button>
+        <form action={fenceAction} className="mt-6 grid max-w-xl gap-3 rounded-2xl border border-line bg-card p-4">
+          <label className="grid gap-1 text-sm">
+            <span className="font-semibold">المجمع</span>
+            <select name="siteId" className="rounded-xl border border-line px-3 py-2">
+              {places.map((place) => <option key={place.id} value={place.id}>{place.city} · {place.name_ar} · {place.radius_m ?? "—"} م</option>)}
+            </select>
+          </label>
+          <label className="flex items-center gap-3 text-sm">
+            <span className="w-28 shrink-0 font-semibold">الطول</span>
+            <input name="lng" required inputMode="decimal" placeholder="39.1728" className="w-full rounded-xl border border-line px-3 py-2" />
+          </label>
+          <label className="flex items-center gap-3 text-sm">
+            <span className="w-28 shrink-0 font-semibold">العرض</span>
+            <input name="lat" required inputMode="decimal" placeholder="21.5432" className="w-full rounded-xl border border-line px-3 py-2" />
+          </label>
+          <label className="grid gap-1 text-sm">
+            <span className="font-semibold">المسافة المسموحة للبصمة والسيلفي (متر)</span>
+            <input name="radius" required inputMode="numeric" placeholder="900" className="rounded-xl border border-line px-3 py-2" />
+          </label>
+          <button className="rounded-xl bg-ink px-3 py-2 text-paper" type="submit">احفظ إحداثيات المجمع ومسافته</button>
         </form>
       ) : null}
       {canEditFence && places.length ? (
@@ -125,21 +145,22 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       {user.role === "TECH_ADMIN" ? (
         <div className="mt-8">
           <h2 className="font-semibold">الصلاحيات</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-7 text-ink/70">التقني يملك كل إجراء. من هنا تعطي أي موظف صلاحية وتسحبها في أي وقت: قبول المسجّلين، أو تغيير إحداثيات الموقع ومسافة البصمة.</p>
+          <p className="mt-2 max-w-2xl text-sm leading-7 text-ink/70">بجانب كل موظف زرّان: موقع البصمة يفتح له تعديل إحداثيات المجمع ومسافته، وقبول التسجيل يفتح له قبول الموظفين الجدد. اضغط الزر لمنح الصلاحية، واضغطه مرة أخرى لسحبها. خانات الطول والعرض عند إضافة مجمع تبقى في حسابك فقط.</p>
           {people.length ? (
             <ul className="mt-3 space-y-2">
               {people.map((person) => (
-                <li key={person.id} className="rounded-xl border border-line bg-card px-4 py-3 text-sm">
+                <li key={person.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-card px-4 py-3 text-sm">
                   <p>{person.name_ar} · {roles[person.role]}</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {Object.entries(capabilityLabels).map(([capability, label]) => {
                       const held = grants.has(`${person.id}:${capability}`) || (capability === "approve_join" && approvers.has(person.id));
                       return (
                         <form key={capability} action={capabilityAction}>
                           <input type="hidden" name="userId" value={person.id} />
                           <input type="hidden" name="capability" value={capability} />
-                          <button name="mode" value={held ? "revoke" : "grant"} className="rounded-xl border border-line px-3 py-2" type="submit">
-                            {held ? `سحب ${label}` : `منح ${label}`}
+                          <button name="mode" value={held ? "revoke" : "grant"} className={`rounded-full border px-3 py-2 ${held ? "border-teal bg-teal text-white" : "border-line bg-paper"}`} type="submit" aria-pressed={held}>
+                            {capability === "edit_fence" ? "⌖ " : "✓ "}
+                            {held ? label : `منح ${label}`}
                           </button>
                         </form>
                       );

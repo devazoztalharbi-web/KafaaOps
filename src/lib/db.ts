@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { canonical, dataDir, hashPassword, hmac, sha256 } from "./crypto";
+import { canonical, dataDir, hashPassword, hmac, sha256, verifyPassword } from "./crypto";
 
 export type Role =
   | "PLATFORM_ADMIN"
@@ -30,7 +30,7 @@ export type UserRow = {
 };
 
 const schemaVersion = 8;
-const globalDb = globalThis as unknown as { __kafaaDb?: DatabaseSync; __kafaaSchema?: number };
+const globalDb = globalThis as unknown as { __kafaaDb?: DatabaseSync; __kafaaSchema?: number; __kafaaTech?: boolean };
 
 export function db() {
   if (!globalDb.__kafaaDb) {
@@ -45,6 +45,10 @@ export function db() {
     migrate(globalDb.__kafaaDb);
     seed(globalDb.__kafaaDb);
     globalDb.__kafaaSchema = schemaVersion;
+  }
+  if (!globalDb.__kafaaTech) {
+    ensureTechAdmin(globalDb.__kafaaDb);
+    globalDb.__kafaaTech = true;
   }
   return globalDb.__kafaaDb;
 }
@@ -393,11 +397,24 @@ function migrate(database: DatabaseSync) {
       PRIMARY KEY (company_id, user_id, capability)
     );
   `);
-  const techMail = "devabulaziz@outlook.com";
-  const taken = database.prepare("SELECT id FROM users WHERE email = ?").get(techMail);
-  if (!taken) {
-    database.prepare("UPDATE users SET email = ? WHERE email = ? AND role = 'TECH_ADMIN'").run(techMail, "tech@kafaaops.local");
+}
+
+function ensureTechAdmin(database: DatabaseSync) {
+  const email = (process.env.TECH_ADMIN_EMAIL ?? "devabulaziz@outlook.com").trim().toLowerCase();
+  const password = process.env.TECH_ADMIN_PASSWORD?.trim() ?? "";
+  const tech = database.prepare("SELECT id, email, password_hash FROM users WHERE role = 'TECH_ADMIN' ORDER BY created_at LIMIT 1").get() as
+    | { id: string; email: string; password_hash: string }
+    | undefined;
+  if (!tech) return;
+  const nextEmail = email.includes("@") ? email : tech.email;
+  const occupied = database.prepare("SELECT id FROM users WHERE email = ? AND id != ?").get(nextEmail, tech.id) as { id: string } | undefined;
+  const emailToStore = occupied ? tech.email : nextEmail;
+  if (!password) {
+    if (emailToStore !== tech.email) database.prepare("UPDATE users SET email = ? WHERE id = ?").run(emailToStore, tech.id);
+    return;
   }
+  if (emailToStore === tech.email && verifyPassword(password, tech.password_hash)) return;
+  database.prepare("UPDATE users SET email = ?, password_hash = ?, status = 'ACTIVE' WHERE id = ?").run(emailToStore, hashPassword(password), tech.id);
 }
 
 function seed(database: DatabaseSync) {

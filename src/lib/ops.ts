@@ -149,6 +149,8 @@ export function recordPunch(
   },
 ) {
   if (!user.companyId || (user.role !== "GUARD" && user.role !== "SUPERVISOR")) return { error: "err_permission" as const };
+  if (input.kind === "IN" && punchedInToday(user.companyId, user.id)) return { error: "err_already_in" as const };
+  if (input.kind === "OUT" && punchedOutToday(user.companyId, user.id)) return { error: "err_already_out" as const };
   const face = consumeFaceProof(input.faceProof, user.id);
   if (!face) return { error: "err_face" as const };
   const block = fieldPunchBlock(input.integrity, input.userAgent);
@@ -204,14 +206,11 @@ export function setSiteFence(actor: SessionUser, input: { siteId: string; lat: n
   return { radius: input.radius };
 }
 
-const placeKinds = ["مجمع", "مجمع تجاري", "سوق", "سوق تجاري", "موقع"] as const;
-
-export function addPlace(actor: SessionUser, input: { name: string; city: string; kind: string; lat: number; lng: number; radius: number }) {
+export function addPlace(actor: SessionUser, input: { name: string; city: string; lat: number; lng: number; radius: number }) {
   if (!actor.companyId || actor.role !== "TECH_ADMIN") return { error: "err_permission" as const };
   const name = input.name.trim();
   const city = input.city.trim();
   if (name.length < 2 || name.length > 80 || city.length < 2 || city.length > 40) return { error: "err_place" as const };
-  if (!placeKinds.includes(input.kind as (typeof placeKinds)[number])) return { error: "err_place" as const };
   if (!Number.isInteger(input.radius) || input.radius < 30 || input.radius > 5000) return { error: "err_fence" as const };
   if (!Number.isFinite(input.lat) || !Number.isFinite(input.lng) || Math.abs(input.lat) > 90 || Math.abs(input.lng) > 180) return { error: "err_fence" as const };
   const id = crypto.randomUUID();
@@ -220,13 +219,13 @@ export function addPlace(actor: SessionUser, input: { name: string; city: string
     id,
     actor.companyId,
     name,
-    input.kind,
+    name,
     city,
     input.lat,
     input.lng,
     input.radius,
   );
-  audit(actor.companyId, actor.id, "place.add", "site", id, { name, city, kind: input.kind, radius: input.radius });
+  audit(actor.companyId, actor.id, "place.add", "site", id, { name, city, radius: input.radius });
   return { id };
 }
 
@@ -254,14 +253,23 @@ export function addWorkSite(actor: SessionUser, input: { parentId: string; name:
   return { id };
 }
 
-export function punchedInToday(companyId: string, userId: string) {
+function punchedKindToday(companyId: string, userId: string, kind: "IN" | "OUT") {
   const today = riyadhParts().date;
   const rows = many<{ server_time: string }>(
-    "SELECT server_time FROM punches WHERE company_id = ? AND user_id = ? AND kind = 'IN' ORDER BY server_time DESC LIMIT 8",
+    "SELECT server_time FROM punches WHERE company_id = ? AND user_id = ? AND kind = ? ORDER BY server_time DESC LIMIT 8",
     companyId,
     userId,
+    kind,
   );
   return rows.some((row) => riyadhParts(new Date(row.server_time)).date === today);
+}
+
+export function punchedInToday(companyId: string, userId: string) {
+  return punchedKindToday(companyId, userId, "IN");
+}
+
+export function punchedOutToday(companyId: string, userId: string) {
+  return punchedKindToday(companyId, userId, "OUT");
 }
 
 export function todayArrival(companyId: string, userId: string) {

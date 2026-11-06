@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { faceAction } from "@/server/actions";
 
-export function FaceCapture({ enrolled, siteId }: { enrolled: boolean; siteId: string | null }) {
+export function FaceCapture({ enrolled, siteId, alreadyIn = false, alreadyOut = false }: { enrolled: boolean; siteId: string | null; alreadyIn?: boolean; alreadyOut?: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -64,8 +64,8 @@ export function FaceCapture({ enrolled, siteId }: { enrolled: boolean; siteId: s
         <button type="button" className="rounded-xl border border-line bg-card px-3 py-2" onClick={() => start().catch(() => setMessage("الكاميرا غير متاحة."))}>تشغيل الكاميرا</button>
         {enrolled ? (
           <>
-            <button type="button" disabled={busy || !siteId} className="rounded-xl bg-teal px-3 py-2 text-white" onClick={() => submit("punch", "IN")}>دخول</button>
-            <button type="button" disabled={busy || !siteId} className="rounded-xl bg-ink px-3 py-2 text-paper" onClick={() => submit("punch", "OUT")}>خروج</button>
+            {alreadyIn ? null : <button type="button" disabled={busy || !siteId} className="rounded-xl bg-teal px-3 py-2 text-white" onClick={() => submit("punch", "IN")}>دخول</button>}
+            {alreadyOut ? null : <button type="button" disabled={busy || !siteId} className="rounded-xl bg-ink px-3 py-2 text-paper" onClick={() => submit("punch", "OUT")}>خروج</button>}
           </>
         ) : (
           <button type="button" disabled={busy} className="rounded-xl bg-ink px-3 py-2 text-paper" onClick={() => submit("enroll", "IN")}>تسجيل الوجه</button>

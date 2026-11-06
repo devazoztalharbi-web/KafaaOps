@@ -1,7 +1,7 @@
 import { ArrivalSelfie } from "@/components/ArrivalSelfie";
 import { FaceCapture } from "@/components/FaceCapture";
 import { activeTemplate } from "@/lib/db";
-import { punchedInToday, todayArrival } from "@/lib/ops";
+import { punchedInToday, punchedOutToday, todayArrival } from "@/lib/ops";
 import { currentUser } from "@/server/actions";
 
 const messages: Record<string, string> = {
@@ -19,6 +19,8 @@ const messages: Record<string, string> = {
   err_file_type: "الصورة يجب أن تكون JPEG من الكاميرا.",
   err_attendance: "سيلفي الوصول يفتح بعد بصمة الدخول.",
   arrived: "تم حفظ سيلفي الوصول داخل نطاق الموقع.",
+  err_already_in: "حضور اليوم مسجّل من قبل. لا حاجة لصورة أو بصمة دخول مرة أخرى.",
+  err_already_out: "انصراف اليوم مسجّل من قبل. لا حاجة لبصمة خروج مرة أخرى.",
 };
 
 export default async function AttendancePage({ searchParams }: { searchParams: Promise<{ e?: string }> }) {
@@ -26,6 +28,8 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
   const query = await searchParams;
   if (!user) return null;
   const enrolled = Boolean(activeTemplate(user.id));
+  const alreadyIn = Boolean(enrolled && user.companyId && punchedInToday(user.companyId, user.id));
+  const alreadyOut = Boolean(enrolled && user.companyId && punchedOutToday(user.companyId, user.id));
   return (
     <section>
       <h1 className="text-2xl font-semibold">بصمة الحضور والانصراف</h1>
@@ -33,8 +37,10 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
         {enrolled ? "هذي بصمة الوجه للدوام والغياب، وهي اللي تنزل في المسير. الدخول والخروج يطابقان القالب على الخادم." : "قبل أي إجراء ميداني: انظر للكاميرا، ارمش مرة، وحرّك رأسك يميناً ويساراً. الابتسامة لا تُستخدم لأنها تغيّر البصمة."}
       </p>
       {query.e && messages[query.e] ? <p className="mt-3 text-sm">{messages[query.e]}</p> : null}
+      {alreadyIn ? <p className="mt-3 text-sm">حضور اليوم مسجّل. لا حاجة لصورة أو بصمة دخول مرة أخرى.</p> : null}
+      {alreadyOut ? <p className="mt-3 text-sm">انصراف اليوم مسجّل. لا حاجة لبصمة خروج مرة أخرى.</p> : null}
       {!user.siteId && enrolled ? <p className="mt-3 text-sm">لا يوجد موقع مرتبط بهذا الحساب، لذلك لا يمكن تسجيل الحركة.</p> : null}
-      <FaceCapture enrolled={enrolled} siteId={user.siteId} />
+      <FaceCapture enrolled={enrolled} siteId={user.siteId} alreadyIn={alreadyIn} alreadyOut={alreadyOut} />
       {enrolled && user.companyId && user.siteId && punchedInToday(user.companyId, user.id) ? <ArrivalSelfie /> : null}
       {enrolled && user.companyId && todayArrival(user.companyId, user.id) ? <p className="mt-3 text-sm">سيلفي الوصول محفوظ لهذا اليوم.</p> : null}
     </section>

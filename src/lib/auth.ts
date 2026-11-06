@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { audit, one, run, type Role, type UserRow } from "./db";
 import { hashPassword, sha256, verifyPassword } from "./crypto";
 
@@ -30,6 +30,37 @@ export function publicUser(user: UserRow) {
 
 export type SessionUser = ReturnType<typeof publicUser>;
 
+function sessionSecret() {
+  return process.env.SESSION_SECRET?.trim() ?? "";
+}
+
+function signedToken(email: string) {
+  const secret = sessionSecret();
+  if (!secret) return null;
+  const body = Buffer.from(JSON.stringify({ email: email.trim().toLowerCase(), exp: Date.now() + 12 * 60 * 60 * 1000 })).toString("base64url");
+  const sig = createHmac("sha256", secret).update(body).digest("base64url");
+  return `${body}.${sig}`;
+}
+
+function readSigned(token: string) {
+  const secret = sessionSecret();
+  const dot = token.lastIndexOf(".");
+  if (!secret || dot <= 0) return null;
+  const body = token.slice(0, dot);
+  const sig = token.slice(dot + 1);
+  const expected = createHmac("sha256", secret).update(body).digest("base64url");
+  const actual = Buffer.from(sig);
+  const wanted = Buffer.from(expected);
+  if (actual.length !== wanted.length || !timingSafeEqual(actual, wanted)) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(body, "base64url").toString()) as { email?: string; exp?: number };
+    if (!parsed.email || typeof parsed.exp !== "number" || parsed.exp < Date.now()) return null;
+    return parsed.email;
+  } catch {
+    return null;
+  }
+}
+
 export function login(email: string, password: string, meta: { ip: string; userAgent: string }) {
   const key = sha256(email.trim().toLowerCase());
   const throttle = one<{ fails: number; locked_until: string | null }>(
@@ -59,26 +90,33 @@ export function login(email: string, password: string, meta: { ip: string; userA
   }
   run("UPDATE login_throttle SET fails = 0, locked_until = NULL WHERE email_hash = ?", key);
   run("UPDATE users SET failed_logins = 0, locked_until = NULL WHERE id = ?", user.id);
-  const token = randomBytes(32).toString("base64url");
-  const now = new Date();
-  const expires = new Date(now.getTime() + 12 * 60 * 60 * 1000).toISOString();
-  run(
-    `INSERT INTO sessions (id, user_id, token_hash, created_at, expires_at, last_seen, idle_minutes, revoked)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
-    crypto.randomUUID(),
-    user.id,
-    sha256(token),
-    now.toISOString(),
-    expires,
-    now.toISOString(),
-    IDLE_MINUTES[user.role],
-  );
+  const token = signedToken(user.email) ?? randomBytes(32).toString("base64url");
+  if (!sessionSecret()) {
+    const now = new Date();
+    const expires = new Date(now.getTime() + 12 * 60 * 60 * 1000).toISOString();
+    run(
+      `INSERT INTO sessions (id, user_id, token_hash, created_at, expires_at, last_seen, idle_minutes, revoked)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
+      crypto.randomUUID(),
+      user.id,
+      sha256(token),
+      now.toISOString(),
+      expires,
+      now.toISOString(),
+      IDLE_MINUTES[user.role],
+    );
+  }
   if (user.company_id) audit(user.company_id, user.id, "login", "session", user.id, meta);
   return { token, user: publicUser(user) };
 }
 
 export function sessionUser(token: string | undefined | null): SessionUser | null {
   if (!token) return null;
+  const email = readSigned(token);
+  if (email) {
+    const signedUser = one<UserRow>("SELECT * FROM users WHERE email = ? AND status = 'ACTIVE'", email);
+    return signedUser ? publicUser(signedUser) : null;
+  }
   const row = one<{
     user_id: string;
     expires_at: string;
