@@ -1,5 +1,6 @@
 import { audit, many, one, run } from "./db";
 import { hashPassword, passwordIssues } from "./crypto";
+import { hasCapability } from "./grants";
 import type { SessionUser } from "./auth";
 
 export function requestJoin(input: { name: string; email: string; password: string; joinCode: string }) {
@@ -32,9 +33,7 @@ export function requestJoin(input: { name: string; email: string; password: stri
 }
 
 export function canApproveJoin(actor: SessionUser) {
-  if (!actor.companyId) return false;
-  if (actor.role === "TECH_ADMIN") return true;
-  return Boolean(one("SELECT user_id FROM join_approvers WHERE company_id = ? AND user_id = ?", actor.companyId, actor.id));
+  return hasCapability(actor, "approve_join");
 }
 
 export function grantJoinApproval(actor: SessionUser, userId: string) {

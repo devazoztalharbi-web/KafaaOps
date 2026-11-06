@@ -29,7 +29,8 @@ export type UserRow = {
   created_at: string;
 };
 
-const globalDb = globalThis as unknown as { __kafaaDb?: DatabaseSync };
+const schemaVersion = 8;
+const globalDb = globalThis as unknown as { __kafaaDb?: DatabaseSync; __kafaaSchema?: number };
 
 export function db() {
   if (!globalDb.__kafaaDb) {
@@ -38,9 +39,12 @@ export function db() {
     mkdirSync(path.join(dataDir, "files"), { recursive: true });
     const database = new DatabaseSync(path.join(dataDir, "kafaaops.db"));
     database.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
-    migrate(database);
-    seed(database);
     globalDb.__kafaaDb = database;
+  }
+  if (globalDb.__kafaaSchema !== schemaVersion) {
+    migrate(globalDb.__kafaaDb);
+    seed(globalDb.__kafaaDb);
+    globalDb.__kafaaSchema = schemaVersion;
   }
   return globalDb.__kafaaDb;
 }
@@ -129,6 +133,7 @@ function migrate(database: DatabaseSync) {
       latitude REAL,
       longitude REAL,
       radius_m INTEGER,
+      city TEXT,
       active INTEGER NOT NULL DEFAULT 1
     );
     CREATE TABLE IF NOT EXISTS arrival_photos (
@@ -374,6 +379,20 @@ function migrate(database: DatabaseSync) {
   if (directionColumns.length > 0 && !directionColumns.some((column) => column.name === "status")) {
     database.exec("ALTER TABLE custody_directions ADD COLUMN status TEXT NOT NULL DEFAULT 'OPEN'");
   }
+  const siteColumns = database.prepare("PRAGMA table_info(sites)").all() as Array<{ name: string }>;
+  if (siteColumns.length > 0 && !siteColumns.some((column) => column.name === "city")) {
+    database.exec("ALTER TABLE sites ADD COLUMN city TEXT");
+  }
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS capabilities (
+      company_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      capability TEXT NOT NULL,
+      granted_by TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (company_id, user_id, capability)
+    );
+  `);
   const techMail = "devabulaziz@outlook.com";
   const taken = database.prepare("SELECT id FROM users WHERE email = ?").get(techMail);
   if (!taken) {
@@ -394,21 +413,6 @@ function seed(database: DatabaseSync) {
        VALUES (?, ?, ?, ?, 21, 150, 0.48, ?)`,
     )
     .run(companyId, "تضاريس نجد للحراسات الأمنية", "Najd Terrain Security", "NAJD-TNS", now);
-
-  const complexId = crypto.randomUUID();
-  const siteId = crypto.randomUUID();
-  database
-    .prepare(
-      `INSERT INTO sites (id, company_id, parent_id, kind, name_ar, name_en, latitude, longitude, radius_m, active)
-       VALUES (?, ?, NULL, 'COMPLEX', ?, ?, NULL, NULL, NULL, 1)`,
-    )
-    .run(complexId, companyId, "مجمع العليا", "Olaya complex");
-  database
-    .prepare(
-      `INSERT INTO sites (id, company_id, parent_id, kind, name_ar, name_en, latitude, longitude, radius_m, active)
-       VALUES (?, ?, ?, 'SITE', ?, ?, ?, ?, 180, 1)`,
-    )
-    .run(siteId, companyId, complexId, "بوابة العليا", "Olaya gate", 24.711, 46.675);
 
   database
     .prepare(

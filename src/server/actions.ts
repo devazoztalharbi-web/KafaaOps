@@ -6,11 +6,12 @@ import { can, login, revoke, sessionUser } from "@/lib/auth";
 import { sha256 } from "@/lib/crypto";
 import { enrollFace, matchFace } from "@/lib/face";
 import { parseScheduleCsv, saveSchedule } from "@/lib/payroll";
-import { companyChains, createLeave, decideLeave, recordArrival, recordPunch, setSiteFence } from "@/lib/ops";
+import { addPlace, addWorkSite, companyChains, createLeave, decideLeave, recordArrival, recordPunch, setSiteFence } from "@/lib/ops";
 import { cancelTask, closeTask, createTask, submitTask, suspendEmployee } from "@/lib/tasks";
 import { acknowledgeAlert, addBan, addVehicle, cancelCustody, checkPermit, grantAlertClose, openAlerts, raiseAlert, receiveCustody, recordVehicleIn, returnRadio, revokeAlertClose, startCustody } from "@/lib/field";
 import { addPoint, directPerson } from "@/lib/posts";
 import { approveJoin, grantJoinApproval, rejectJoin, requestJoin, revokeJoinApproval } from "@/lib/join";
+import { setCapability } from "@/lib/grants";
 
 async function token() {
   const jar = await cookies();
@@ -118,6 +119,37 @@ export async function fenceAction(formData: FormData) {
     lng: Number(formData.get("lng")),
     radius: Number(formData.get("radius")),
   });
+  redirect(`/app?e=${"error" in result ? result.error : "ok"}`);
+}
+
+export async function placeAction(formData: FormData) {
+  const user = await currentUser();
+  if (!user) redirect("/enter");
+  const result = addPlace(user, {
+    name: String(formData.get("name") ?? ""),
+    city: String(formData.get("city") ?? ""),
+    kind: String(formData.get("kind") ?? ""),
+  });
+  redirect(`/app?e=${"error" in result ? result.error : "ok"}`);
+}
+
+export async function workSiteAction(formData: FormData) {
+  const user = await currentUser();
+  if (!user) redirect("/enter");
+  const result = addWorkSite(user, {
+    parentId: String(formData.get("parentId") ?? ""),
+    name: String(formData.get("name") ?? ""),
+    lat: Number(formData.get("lat")),
+    lng: Number(formData.get("lng")),
+    radius: Number(formData.get("radius")),
+  });
+  redirect(`/app?e=${"error" in result ? result.error : "ok"}`);
+}
+
+export async function capabilityAction(formData: FormData) {
+  const user = await currentUser();
+  if (!user) redirect("/enter");
+  const result = setCapability(user, String(formData.get("userId") ?? ""), String(formData.get("capability") ?? ""), formData.get("mode") === "grant");
   redirect(`/app?e=${"error" in result ? result.error : "ok"}`);
 }
 

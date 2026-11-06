@@ -7,6 +7,7 @@ import { distanceMeters } from "./geo";
 import { eachDate, riyadhParts } from "./time";
 import { fieldPunchBlock, type IntegrityReport } from "./device-integrity";
 import { consumeFaceProof } from "./face";
+import { hasCapability } from "./grants";
 import type { SessionUser } from "./auth";
 
 export function createLeave(
@@ -193,14 +194,59 @@ export function recordPunch(
 }
 
 export function setSiteFence(actor: SessionUser, input: { siteId: string; lat: number; lng: number; radius: number }) {
-  if (!actor.companyId || (actor.role !== "TECH_ADMIN" && actor.role !== "SECURITY_MANAGER")) return { error: "err_permission" as const };
+  if (!hasCapability(actor, "edit_fence") || !actor.companyId) return { error: "err_permission" as const };
   if (!Number.isInteger(input.radius) || input.radius < 30 || input.radius > 5000) return { error: "err_fence" as const };
   if (!Number.isFinite(input.lat) || !Number.isFinite(input.lng) || Math.abs(input.lat) > 90 || Math.abs(input.lng) > 180) return { error: "err_fence" as const };
-  const site = one<{ id: string }>("SELECT id FROM sites WHERE id = ? AND company_id = ? AND active = 1", input.siteId, actor.companyId);
+  const site = one<{ id: string }>("SELECT id FROM sites WHERE id = ? AND company_id = ? AND kind = 'SITE' AND active = 1", input.siteId, actor.companyId);
   if (!site) return { error: "err_permission" as const };
   run("UPDATE sites SET latitude = ?, longitude = ?, radius_m = ? WHERE id = ?", input.lat, input.lng, input.radius, site.id);
   audit(actor.companyId, actor.id, "site.fence", "site", site.id, { lat: input.lat, lng: input.lng, radius: input.radius });
   return { radius: input.radius };
+}
+
+const placeKinds = ["مجمع", "سوق", "موقع"] as const;
+
+export function addPlace(actor: SessionUser, input: { name: string; city: string; kind: string }) {
+  if (!actor.companyId || actor.role !== "TECH_ADMIN") return { error: "err_permission" as const };
+  const name = input.name.trim();
+  const city = input.city.trim();
+  if (name.length < 2 || name.length > 80 || city.length < 2 || city.length > 40) return { error: "err_place" as const };
+  if (!placeKinds.includes(input.kind as (typeof placeKinds)[number])) return { error: "err_place" as const };
+  const id = crypto.randomUUID();
+  run(
+    "INSERT INTO sites (id, company_id, parent_id, kind, name_ar, name_en, city, latitude, longitude, radius_m, active) VALUES (?, ?, NULL, 'COMPLEX', ?, ?, ?, NULL, NULL, NULL, 1)",
+    id,
+    actor.companyId,
+    name,
+    input.kind,
+    city,
+  );
+  audit(actor.companyId, actor.id, "place.add", "site", id, { name, city, kind: input.kind });
+  return { id };
+}
+
+export function addWorkSite(actor: SessionUser, input: { parentId: string; name: string; lat: number; lng: number; radius: number }) {
+  if (!actor.companyId || actor.role !== "TECH_ADMIN") return { error: "err_permission" as const };
+  const name = input.name.trim();
+  if (name.length < 2 || name.length > 80) return { error: "err_place" as const };
+  if (!Number.isInteger(input.radius) || input.radius < 30 || input.radius > 5000) return { error: "err_fence" as const };
+  if (!Number.isFinite(input.lat) || !Number.isFinite(input.lng) || Math.abs(input.lat) > 90 || Math.abs(input.lng) > 180) return { error: "err_fence" as const };
+  const parent = one<{ id: string }>("SELECT id FROM sites WHERE id = ? AND company_id = ? AND kind = 'COMPLEX' AND active = 1", input.parentId, actor.companyId);
+  if (!parent) return { error: "err_place" as const };
+  const id = crypto.randomUUID();
+  run(
+    "INSERT INTO sites (id, company_id, parent_id, kind, name_ar, name_en, city, latitude, longitude, radius_m, active) VALUES (?, ?, ?, 'SITE', ?, ?, NULL, ?, ?, ?, 1)",
+    id,
+    actor.companyId,
+    parent.id,
+    name,
+    name,
+    input.lat,
+    input.lng,
+    input.radius,
+  );
+  audit(actor.companyId, actor.id, "site.add", "site", id, { name, radius: input.radius });
+  return { id };
 }
 
 export function punchedInToday(companyId: string, userId: string) {

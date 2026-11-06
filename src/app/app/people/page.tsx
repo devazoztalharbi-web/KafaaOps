@@ -10,9 +10,6 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
   const sites = many<{ id: string; name_ar: string }>("SELECT id, name_ar FROM sites WHERE company_id = ? AND kind = 'SITE' AND active = 1", user.companyId);
   const managers = many<{ id: string; name_ar: string }>("SELECT id, name_ar FROM users WHERE company_id = ? AND role = 'SECURITY_MANAGER' AND status = 'ACTIVE'", user.companyId);
   const supervisors = many<{ id: string; name_ar: string; shift_no: number | null }>("SELECT id, name_ar, shift_no FROM users WHERE company_id = ? AND role = 'SUPERVISOR' AND status = 'ACTIVE'", user.companyId);
-  const staff = user.role === "TECH_ADMIN"
-    ? many<{ id: string; name_ar: string }>("SELECT id, name_ar FROM users WHERE company_id = ? AND status = 'ACTIVE' AND id != ? ORDER BY name_ar", user.companyId, user.id)
-    : [];
   return (
     <section>
       <h1 className="text-2xl font-semibold">طلبات الانضمام</h1>
@@ -56,23 +53,6 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
         ))}
       </ul>
       {!pending.length ? <p className="mt-4 text-sm">لا توجد طلبات معلّقة.</p> : null}
-      {staff.length ? (
-        <div className="mt-8">
-          <h2 className="font-semibold">منح قبول الموظفين</h2>
-          <ul className="mt-3 space-y-2">
-            {staff.map((person) => (
-              <li key={person.id} className="flex items-center justify-between rounded-xl border border-line bg-card px-4 py-2 text-sm">
-                <span>{person.name_ar}</span>
-                <form action={reviewJoinAction}>
-                  <input type="hidden" name="userId" value={person.id} />
-                  <button name="mode" value="grant" className="rounded-xl bg-ink px-3 py-2 text-paper" type="submit">منح القبول</button>
-                  <button name="mode" value="revoke" className="ms-2 rounded-xl border border-line px-3 py-2" type="submit">سحب</button>
-                </form>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
     </section>
   );
 }

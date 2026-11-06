@@ -1,12 +1,13 @@
 import { audit, many, one, run } from "./db";
 import { riyadhParts } from "./time";
+import { hasCapability } from "./grants";
 import type { SessionUser } from "./auth";
 
 export function addPoint(actor: SessionUser, siteId: string, label: string) {
-  if (!actor.companyId || (actor.role !== "TECH_ADMIN" && actor.role !== "SECURITY_MANAGER")) return { error: "err_permission" as const };
+  if (!hasCapability(actor, "edit_fence") || !actor.companyId) return { error: "err_permission" as const };
   const name = label.trim();
   if (name.length < 1 || name.length > 40 || /[\r\n]/.test(name)) return { error: "err_label" as const };
-  const site = one<{ id: string }>("SELECT id FROM sites WHERE id = ? AND company_id = ? AND active = 1", siteId, actor.companyId);
+  const site = one<{ id: string }>("SELECT id FROM sites WHERE id = ? AND company_id = ? AND kind = 'SITE' AND active = 1", siteId, actor.companyId);
   if (!site) return { error: "err_permission" as const };
   const existing = one<{ id: string }>("SELECT id FROM site_points WHERE company_id = ? AND site_id = ? AND label = ?", actor.companyId, site.id, name);
   if (existing) return { error: "err_label" as const };

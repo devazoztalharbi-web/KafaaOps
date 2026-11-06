@@ -2,25 +2,12 @@ import Link from "next/link";
 import { AlertBanner } from "@/components/AlertBanner";
 import { logoutAction } from "@/server/actions";
 import { canCloseAlert } from "@/lib/field";
-import { canApproveJoin } from "@/lib/join";
 import { developer } from "@/lib/developer";
+import { navigation } from "@/lib/nav";
 import type { SessionUser } from "@/lib/auth";
 
-const links = [
-  { href: "/app", label: "الرئيسية" },
-  { href: "/app/attendance", label: "الحضور" },
-  { href: "/app/schedule", label: "الجدول" },
-  { href: "/app/payroll", label: "المسير" },
-  { href: "/app/leaves", label: "الإجازات" },
-  { href: "/app/tasks", label: "المهام" },
-  { href: "/app/custody", label: "العهد" },
-  { href: "/app/permits", label: "التصاريح" },
-  { href: "/app/alerts", label: "البلاغات" },
-  { href: "/app/security", label: "فحص السجل" },
-  { href: "/app/info", label: "معلومات" },
-];
-
 export function Shell({ user, children }: { user: SessionUser; children: React.ReactNode }) {
+  const links = navigation(user);
   return (
     <div className="min-h-screen bg-paper text-ink">
       <header className="border-b border-line bg-ink text-paper">
@@ -30,7 +17,6 @@ export function Shell({ user, children }: { user: SessionUser; children: React.R
             {links.map((link) => (
               <Link key={link.href} href={link.href}>{link.label}</Link>
             ))}
-            {canApproveJoin(user) ? <Link href="/app/people">الطلبات</Link> : null}
           </nav>
           <div className="text-sm">
             <span>{user.nameAr}</span>
