@@ -10,7 +10,7 @@ import {
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-export const dataDir = path.join(process.cwd(), "data");
+export const dataDir = process.env.VERCEL ? path.join("/tmp", "kafaaops") : path.join(process.cwd(), "data");
 
 function masterKey() {
   mkdirSync(dataDir, { recursive: true });
