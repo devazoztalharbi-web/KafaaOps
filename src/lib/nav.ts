@@ -1,6 +1,15 @@
 import { canApproveJoin } from "./join";
 import type { SessionUser } from "./auth";
 
+export const roleTitle: Record<SessionUser["role"], string> = {
+  PLATFORM_ADMIN: "مدير المنصة",
+  TECH_ADMIN: "المسؤول التقني",
+  HR: "الموارد البشرية",
+  SECURITY_MANAGER: "مدير الأمن",
+  SUPERVISOR: "مشرف الوردية",
+  GUARD: "حارس الأمن",
+};
+
 const catalog = [
   { href: "/app", label: "الرئيسية" },
   { href: "/app/attendance", label: "الحضور" },

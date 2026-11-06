@@ -1,5 +1,8 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { audit, many, one, run } from "./db";
-import { hashPassword, passwordIssues } from "./crypto";
+import { dataDir, encrypt, hashPassword, passwordIssues, sha256 } from "./crypto";
+import { assertUpload } from "./files";
 import { hasCapability } from "./grants";
 import type { SessionUser } from "./auth";
 
@@ -70,24 +73,51 @@ export function listPending(actor: SessionUser) {
 const joinRoles = ["SECURITY_MANAGER", "SUPERVISOR", "GUARD", "HR"] as const;
 type JoinRole = (typeof joinRoles)[number];
 
-export function approveJoin(actor: SessionUser, input: { userId: string; siteId: string; shiftNo: number; managerId: string; role?: string }) {
+function chosenEmployeeNo(companyId: string, userId: string, typed: string | undefined, fallback: string) {
+  const value = (typed ?? "").trim() || fallback;
+  if (value.length < 1 || value.length > 20 || /[\r\n]/.test(value)) return null;
+  const taken = one<{ id: string }>("SELECT id FROM users WHERE company_id = ? AND employee_no = ? AND id != ?", companyId, value, userId);
+  if (taken) return null;
+  return value;
+}
+
+function storePortrait(bytes: Uint8Array) {
+  try {
+    const kind = assertUpload(bytes);
+    if (kind === "pdf") return { error: "err_file_type" as const };
+  } catch {
+    return { error: "err_file_type" as const };
+  }
+  const id = crypto.randomUUID();
+  const target = path.join(dataDir, "files", `${id}.bin`);
+  mkdirSync(path.dirname(target), { recursive: true });
+  writeFileSync(target, encrypt(Buffer.from(bytes)));
+  return { path: target, sha: sha256(Buffer.from(bytes)) };
+}
+
+export function approveJoin(actor: SessionUser, input: { userId: string; siteId: string; shiftNo: number; managerId: string; role?: string; employeeNo?: string; photo?: Uint8Array }) {
   if (!canApproveJoin(actor) || !actor.companyId) return { error: "err_permission" as const };
   const role: JoinRole = joinRoles.includes(input.role as JoinRole) ? (input.role as JoinRole) : "GUARD";
   if (role !== "GUARD" && actor.role !== "TECH_ADMIN") return { error: "err_permission" as const };
   const person = one<{ id: string }>("SELECT id FROM users WHERE id = ? AND company_id = ? AND status = 'PENDING'", input.userId, actor.companyId);
   if (!person) return { error: "err_join" as const };
   const stamp = String(Date.now()).slice(-6);
-  const activate = (employeeNo: string, siteId: string | null, shiftNo: number | null, managerId: string | null) => {
+  const portrait = input.photo && input.photo.byteLength > 0 ? storePortrait(input.photo) : null;
+  if (portrait && "error" in portrait) return portrait;
+  const activate = (fallback: string, siteId: string | null, shiftNo: number | null, managerId: string | null) => {
+    const employeeNo = chosenEmployeeNo(actor.companyId!, person.id, input.employeeNo, fallback);
+    if (!employeeNo) return { error: "err_join" as const };
     run(
-      "UPDATE users SET status = 'ACTIVE', role = ?, site_id = ?, shift_no = ?, manager_id = ?, employee_no = ? WHERE id = ?",
+      "UPDATE users SET status = 'ACTIVE', role = ?, site_id = ?, shift_no = ?, manager_id = ?, employee_no = ?, photo_path = ? WHERE id = ?",
       role,
       siteId,
       shiftNo,
       managerId,
       employeeNo,
+      portrait && "path" in portrait ? portrait.path : null,
       person.id,
     );
-    audit(actor.companyId!, actor.id, "join.approve", "user", person.id, { role, siteId, shiftNo });
+    audit(actor.companyId!, actor.id, "join.approve", "user", person.id, { role, siteId, shiftNo, employeeNo });
     return { employeeNo };
   };
   if (role === "HR") return activate(`H-${stamp}`, null, null, null);
@@ -107,6 +137,17 @@ export function approveJoin(actor: SessionUser, input: { userId: string; siteId:
   );
   if (!supervisor || supervisor.shift_no == null) return { error: "err_join" as const };
   return activate(`G-${stamp}`, site.id, supervisor.shift_no, supervisor.id);
+}
+
+export function resetPassword(actor: SessionUser, userId: string, password: string) {
+  if (!actor.companyId || actor.role !== "TECH_ADMIN") return { error: "err_permission" as const };
+  if (passwordIssues(password)) return { error: "err_password" as const };
+  const person = one<{ id: string }>("SELECT id FROM users WHERE id = ? AND company_id = ? AND status = 'ACTIVE' AND id != ?", userId, actor.companyId, actor.id);
+  if (!person) return { error: "err_permission" as const };
+  run("UPDATE users SET password_hash = ?, auth_rev = COALESCE(auth_rev, 0) + 1, failed_logins = 0, locked_until = NULL WHERE id = ?", hashPassword(password), person.id);
+  run("UPDATE sessions SET revoked = 1 WHERE user_id = ?", person.id);
+  audit(actor.companyId, actor.id, "password.reset", "user", person.id, {});
+  return { userId: person.id };
 }
 
 export function rejectJoin(actor: SessionUser, userId: string) {

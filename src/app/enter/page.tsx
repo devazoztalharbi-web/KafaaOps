@@ -13,7 +13,7 @@ export default async function EnterPage({ searchParams }: { searchParams: Promis
   const note = query.e ? messages[query.e] ?? messages.err_bad_login : null;
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-5">
-      <p className="text-sm tracking-[0.16em] text-copper">KafaaOps</p>
+      <p className="text-2xl font-semibold">كفاءة أوبس</p>
       <h1 className="mt-2 text-3xl font-semibold">تسجيل الدخول</h1>
       <p className="mt-2 text-sm leading-7 text-ink/70">ادخل بالبريد وكلمة المرور. كل منصب يدخل بحسابه: التقني، مدير الأمن، المشرف، الحارس، والموارد البشرية.</p>
       {note ? <p className="mt-4 rounded-xl bg-card px-3 py-2 text-sm">{note}</p> : null}

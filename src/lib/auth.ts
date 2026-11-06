@@ -34,10 +34,10 @@ function sessionSecret() {
   return process.env.SESSION_SECRET?.trim() ?? "";
 }
 
-function signedToken(email: string) {
+function signedToken(email: string, rev: number) {
   const secret = sessionSecret();
   if (!secret) return null;
-  const body = Buffer.from(JSON.stringify({ email: email.trim().toLowerCase(), exp: Date.now() + 12 * 60 * 60 * 1000 })).toString("base64url");
+  const body = Buffer.from(JSON.stringify({ email: email.trim().toLowerCase(), exp: Date.now() + 12 * 60 * 60 * 1000, rev })).toString("base64url");
   const sig = createHmac("sha256", secret).update(body).digest("base64url");
   return `${body}.${sig}`;
 }
@@ -53,9 +53,9 @@ function readSigned(token: string) {
   const wanted = Buffer.from(expected);
   if (actual.length !== wanted.length || !timingSafeEqual(actual, wanted)) return null;
   try {
-    const parsed = JSON.parse(Buffer.from(body, "base64url").toString()) as { email?: string; exp?: number };
-    if (!parsed.email || typeof parsed.exp !== "number" || parsed.exp < Date.now()) return null;
-    return parsed.email;
+    const parsed = JSON.parse(Buffer.from(body, "base64url").toString()) as { email?: string; exp?: number; rev?: number };
+    if (!parsed.email || typeof parsed.exp !== "number" || parsed.exp < Date.now() || typeof parsed.rev !== "number") return null;
+    return { email: parsed.email, rev: parsed.rev };
   } catch {
     return null;
   }
@@ -90,7 +90,7 @@ export function login(email: string, password: string, meta: { ip: string; userA
   }
   run("UPDATE login_throttle SET fails = 0, locked_until = NULL WHERE email_hash = ?", key);
   run("UPDATE users SET failed_logins = 0, locked_until = NULL WHERE id = ?", user.id);
-  const token = signedToken(user.email) ?? randomBytes(32).toString("base64url");
+  const token = signedToken(user.email, Number(user.auth_rev ?? 0)) ?? randomBytes(32).toString("base64url");
   if (!sessionSecret()) {
     const now = new Date();
     const expires = new Date(now.getTime() + 12 * 60 * 60 * 1000).toISOString();
@@ -112,10 +112,11 @@ export function login(email: string, password: string, meta: { ip: string; userA
 
 export function sessionUser(token: string | undefined | null): SessionUser | null {
   if (!token) return null;
-  const email = readSigned(token);
-  if (email) {
-    const signedUser = one<UserRow>("SELECT * FROM users WHERE email = ? AND status = 'ACTIVE'", email);
-    return signedUser ? publicUser(signedUser) : null;
+  const signed = readSigned(token);
+  if (signed) {
+    const signedUser = one<UserRow>("SELECT * FROM users WHERE email = ? AND status = 'ACTIVE'", signed.email);
+    if (!signedUser || Number(signedUser.auth_rev ?? 0) !== signed.rev) return null;
+    return publicUser(signedUser);
   }
   const row = one<{
     user_id: string;

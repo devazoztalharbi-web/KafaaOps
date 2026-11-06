@@ -38,6 +38,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const approvers = user.role === "TECH_ADMIN" ? new Set(many<{ user_id: string }>("SELECT user_id FROM join_approvers WHERE company_id = ?", user.companyId).map((row) => row.user_id)) : new Set<string>();
   const directed = teamPostings(user);
   const today = riyadhParts().date;
+  const company = user.role === "TECH_ADMIN"
+    ? one<{ name_ar: string; join_code: string }>("SELECT name_ar, join_code FROM companies WHERE id = ?", user.companyId)
+    : undefined;
   return (
     <section>
       <h1 className="text-2xl font-semibold">مرحباً {user.nameAr}</h1>
@@ -69,6 +72,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <ul className="mt-4 space-y-2">
           {directed.map((row) => <li key={row.name_ar} className="rounded-xl border border-line bg-card px-4 py-2 text-sm">{row.name_ar} · {row.label} · {row.site_name}</li>)}
         </ul>
+      ) : null}
+
+      {company ? (
+        <p className="mt-4 max-w-2xl rounded-2xl border border-line bg-card px-4 py-3 text-sm leading-7">رمز الشركة للتسجيل: <span className="font-semibold">{company.join_code}</span>. يكتبه الموظف عند إنشاء الحساب فيصل طلبه إلى {company.name_ar} فقط.</p>
       ) : null}
 
       {user.role === "TECH_ADMIN" ? (

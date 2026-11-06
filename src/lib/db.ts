@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { canonical, dataDir, hashPassword, hmac, sha256, verifyPassword } from "./crypto";
+import { developer } from "./developer";
 
 export type Role =
   | "PLATFORM_ADMIN"
@@ -27,9 +28,10 @@ export type UserRow = {
   failed_logins: number;
   locked_until: string | null;
   created_at: string;
+  auth_rev: number;
 };
 
-const schemaVersion = 8;
+const schemaVersion = 9;
 const globalDb = globalThis as unknown as { __kafaaDb?: DatabaseSync; __kafaaSchema?: number; __kafaaTech?: boolean };
 
 export function db() {
@@ -387,6 +389,13 @@ function migrate(database: DatabaseSync) {
   if (siteColumns.length > 0 && !siteColumns.some((column) => column.name === "city")) {
     database.exec("ALTER TABLE sites ADD COLUMN city TEXT");
   }
+  const userColumns = database.prepare("PRAGMA table_info(users)").all() as Array<{ name: string }>;
+  if (userColumns.length > 0 && !userColumns.some((column) => column.name === "auth_rev")) {
+    database.exec("ALTER TABLE users ADD COLUMN auth_rev INTEGER NOT NULL DEFAULT 0");
+  }
+  if (userColumns.length > 0 && !userColumns.some((column) => column.name === "photo_path")) {
+    database.exec("ALTER TABLE users ADD COLUMN photo_path TEXT");
+  }
   database.exec(`
     CREATE TABLE IF NOT EXISTS capabilities (
       company_id TEXT NOT NULL,
@@ -402,10 +411,13 @@ function migrate(database: DatabaseSync) {
 function ensureTechAdmin(database: DatabaseSync) {
   const email = (process.env.TECH_ADMIN_EMAIL ?? "devabulaziz@outlook.com").trim().toLowerCase();
   const password = process.env.TECH_ADMIN_PASSWORD?.trim() ?? "";
-  const tech = database.prepare("SELECT id, email, password_hash FROM users WHERE role = 'TECH_ADMIN' ORDER BY created_at LIMIT 1").get() as
-    | { id: string; email: string; password_hash: string }
+  const tech = database.prepare("SELECT id, email, password_hash, name_ar FROM users WHERE role = 'TECH_ADMIN' ORDER BY created_at LIMIT 1").get() as
+    | { id: string; email: string; password_hash: string; name_ar: string }
     | undefined;
   if (!tech) return;
+  if (tech.name_ar === "المسؤول التقني") {
+    database.prepare("UPDATE users SET name_ar = ?, name_en = ? WHERE id = ?").run(developer.nameAr, developer.nameEn, tech.id);
+  }
   const nextEmail = email.includes("@") ? email : tech.email;
   const occupied = database.prepare("SELECT id FROM users WHERE email = ? AND id != ?").get(nextEmail, tech.id) as { id: string } | undefined;
   const emailToStore = occupied ? tech.email : nextEmail;

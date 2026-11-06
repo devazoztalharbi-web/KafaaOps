@@ -10,7 +10,7 @@ import { addPlace, addWorkSite, companyChains, createLeave, decideLeave, recordA
 import { cancelTask, closeTask, createTask, submitTask, suspendEmployee } from "@/lib/tasks";
 import { acknowledgeAlert, addBan, addVehicle, cancelCustody, checkPermit, grantAlertClose, openAlerts, raiseAlert, receiveCustody, recordVehicleIn, returnRadio, revokeAlertClose, startCustody } from "@/lib/field";
 import { addPoint, directPerson } from "@/lib/posts";
-import { approveJoin, grantJoinApproval, rejectJoin, requestJoin, revokeJoinApproval } from "@/lib/join";
+import { approveJoin, grantJoinApproval, rejectJoin, requestJoin, resetPassword, revokeJoinApproval } from "@/lib/join";
 import { setCapability } from "@/lib/grants";
 
 async function token() {
@@ -305,7 +305,16 @@ export async function reviewJoinAction(formData: FormData) {
           shiftNo: Number(formData.get("shiftNo")),
           managerId: String(formData.get("managerId") ?? ""),
           role: String(formData.get("role") ?? "GUARD"),
+          employeeNo: String(formData.get("employeeNo") ?? ""),
+          photo: formData.get("withPhoto") === "1" ? await photo(formData.get("photo")) : undefined,
         });
+  redirect(`/app/people?e=${"error" in result ? result.error : "ok"}`);
+}
+
+export async function resetPasswordAction(formData: FormData) {
+  const user = await currentUser();
+  if (!user) redirect("/enter");
+  const result = resetPassword(user, String(formData.get("userId") ?? ""), String(formData.get("password") ?? ""));
   redirect(`/app/people?e=${"error" in result ? result.error : "ok"}`);
 }
 
