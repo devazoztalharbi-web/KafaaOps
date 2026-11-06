@@ -1,5 +1,5 @@
 import { many } from "@/lib/db";
-import { visibleTasks } from "@/lib/tasks";
+import { dutyLines, visibleTasks } from "@/lib/tasks";
 import { currentUser, taskAction } from "@/server/actions";
 
 const statusLabel: Record<string, string> = {
@@ -13,6 +13,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   const actor = await currentUser();
   const query = await searchParams;
   if (!actor?.companyId) return null;
+  const companyId = actor.companyId;
   const tasks = visibleTasks(actor);
   const canAssign = ["SUPERVISOR", "SECURITY_MANAGER", "TECH_ADMIN"].includes(actor.role);
   const guards = canAssign
@@ -33,7 +34,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   return (
     <section>
       <h1 className="text-2xl font-semibold">المهام الميدانية</h1>
-      <p className="mt-2 max-w-2xl text-sm leading-7 text-ink/70">الموظف الذي عليه مهمة مفتوحة أو بانتظار الاعتماد لا يمكن إيقافه.</p>
+      <p className="mt-2 max-w-2xl text-sm leading-7 text-ink/70">في بداية الدوام يوجّه المشرف أفراد ورديته إلى س1 أو زون 1 من الصفحة الرئيسية. في نهاية الدوام يسلّم الموظف المهمة، فيرى المشرف كل ما سجّله ذلك اليوم ثم يقيّمه ويقفلها. السجل يبقى لمن يراجع لاحقاً.</p>
       {query.e ? <p className="mt-3 text-sm">{query.e === "ok" ? "تم تنفيذ الإجراء." : `تعذر التنفيذ: ${query.e}`}</p> : null}
       {canAssign ? (
         <form action={taskAction} className="mt-4 grid gap-3 rounded-2xl border border-line bg-card p-4 md:grid-cols-4">
@@ -53,12 +54,15 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
           <li key={task.id} className="rounded-2xl border border-line bg-card p-4">
             <p className="font-semibold">{task.guard_name} · {task.site_name}</p>
             <p className="text-sm">{task.duty_date} · {statusLabel[task.status] ?? task.status}</p>
+            <ul className="mt-2 space-y-1 text-sm text-ink/70">
+              {dutyLines(companyId, task.guard_id, task.duty_date).map((line, index) => <li key={`${task.id}-${index}`}>{line}</li>)}
+            </ul>
             {task.rating ? <p className="text-sm">التقييم {task.rating} · {task.review_note}</p> : null}
             {actor.role === "GUARD" && task.status === "OPEN" ? (
               <form action={taskAction} className="mt-3">
                 <input type="hidden" name="mode" value="submit" />
                 <input type="hidden" name="id" value={task.id} />
-                <button className="rounded-xl bg-teal px-3 py-2 text-white" type="submit">تسليم المهمة</button>
+                <button className="rounded-xl bg-teal px-3 py-2 text-white" type="submit">إنهاء المهمة</button>
               </form>
             ) : null}
             {actor.role === "SUPERVISOR" && task.status === "SUBMITTED" ? (
@@ -67,7 +71,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
                 <input type="hidden" name="id" value={task.id} />
                 <input name="rating" type="number" min={1} max={5} required placeholder="1-5" className="w-20 rounded-xl border border-line px-3 py-2" />
                 <input name="note" placeholder="ملاحظة" className="rounded-xl border border-line px-3 py-2" />
-                <button className="rounded-xl bg-ink px-3 py-2 text-paper" type="submit">إغلاق</button>
+                <button className="rounded-xl bg-ink px-3 py-2 text-paper" type="submit">تقييم وإغلاق نهائي</button>
               </form>
             ) : null}
             {actor.role === "SUPERVISOR" && task.status === "OPEN" ? (

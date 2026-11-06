@@ -8,7 +8,7 @@ import { enrollFace, matchFace } from "@/lib/face";
 import { parseScheduleCsv, saveSchedule } from "@/lib/payroll";
 import { addPlace, addWorkSite, companyChains, createLeave, decideLeave, recordArrival, recordPunch, setSiteFence } from "@/lib/ops";
 import { cancelTask, closeTask, createTask, submitTask, suspendEmployee } from "@/lib/tasks";
-import { acknowledgeAlert, addBan, addVehicle, cancelCustody, checkPermit, grantAlertClose, openAlerts, raiseAlert, receiveCustody, recordVehicleIn, returnRadio, revokeAlertClose, startCustody } from "@/lib/field";
+import { acknowledgeAlert, addBan, addVehicle, cancelCustody, childReports, grantAlertClose, openAlerts, raiseAlert, receiveCustody, recordPaperPermit, recordVehicleIn, returnRadio, revokeAlertClose, startCustody } from "@/lib/field";
 import { addPoint, directPerson } from "@/lib/posts";
 import { approveJoin, grantJoinApproval, rejectJoin, requestJoin, resetPassword, revokeJoinApproval } from "@/lib/join";
 import { setCapability } from "@/lib/grants";
@@ -248,13 +248,12 @@ export async function custodyAction(formData: FormData) {
 export async function permitAction(formData: FormData) {
   const user = await currentUser();
   if (!user) redirect("/enter");
-  const result = checkPermit(user, {
-    shopName: String(formData.get("shopName") ?? ""),
-    registrationNo: String(formData.get("registrationNo") ?? ""),
-    validUntil: String(formData.get("validUntil") ?? ""),
+  const result = recordPaperPermit(user, {
+    decision: String(formData.get("decision") ?? ""),
+    note: String(formData.get("note") ?? ""),
+    photo: await photo(formData.get("photo")),
   });
-  if ("error" in result) redirect(`/app/permits?e=${result.error}`);
-  redirect(`/app/permits?e=${result.banned && result.expired ? "both" : result.banned ? "banned" : result.expired ? "expired" : "ok"}`);
+  redirect(`/app/permits?e=${"error" in result ? result.error : "ok"}`);
 }
 
 export async function banAction(formData: FormData) {
@@ -271,7 +270,11 @@ export async function banAction(formData: FormData) {
 export async function raiseAlertAction(formData: FormData) {
   const user = await currentUser();
   if (!user) redirect("/enter");
-  const result = raiseAlert(user, { kind: String(formData.get("kind") ?? ""), body: String(formData.get("body") ?? "") });
+  const result = raiseAlert(user, {
+    kind: String(formData.get("kind") ?? ""),
+    body: String(formData.get("body") ?? ""),
+    photo: await photo(formData.get("photo")),
+  });
   redirect(`/app/alerts?e=${"error" in result ? result.error : "ok"}`);
 }
 
@@ -279,6 +282,12 @@ export async function listAlerts() {
   const user = await currentUser();
   if (!user?.companyId) return [];
   return openAlerts(user.companyId);
+}
+
+export async function listChildren() {
+  const user = await currentUser();
+  if (!user?.companyId) return [];
+  return childReports(user.companyId);
 }
 
 export async function joinAction(formData: FormData) {
@@ -344,7 +353,8 @@ export async function acknowledgeAction(formData: FormData) {
   const user = await currentUser();
   if (!user) redirect("/enter");
   acknowledgeAlert(user, String(formData.get("id") ?? ""));
-  redirect("/app");
+  const back = String(formData.get("back") ?? "/app");
+  redirect(back.startsWith("/app") ? back : "/app");
 }
 
 export async function chainsAction() {

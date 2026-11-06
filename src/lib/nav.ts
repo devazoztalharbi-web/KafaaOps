@@ -29,7 +29,7 @@ const byRole: Record<SessionUser["role"], string[]> = {
   PLATFORM_ADMIN: ["/app", "/app/info", "/app/security"],
   TECH_ADMIN: catalog.map((item) => item.href),
   SECURITY_MANAGER: ["/app", "/app/schedule", "/app/payroll", "/app/leaves", "/app/tasks", "/app/permits", "/app/alerts", "/app/security", "/app/info"],
-  HR: ["/app", "/app/payroll", "/app/leaves", "/app/security", "/app/info"],
+  HR: ["/app", "/app/payroll", "/app/leaves", "/app/alerts", "/app/security", "/app/info"],
   SUPERVISOR: ["/app", "/app/attendance", "/app/schedule", "/app/leaves", "/app/tasks", "/app/custody", "/app/permits", "/app/alerts", "/app/info"],
   GUARD: ["/app", "/app/attendance", "/app/schedule", "/app/leaves", "/app/tasks", "/app/custody", "/app/permits", "/app/alerts", "/app/info"],
 };

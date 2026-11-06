@@ -432,14 +432,44 @@ export function checkPermit(actor: SessionUser, input: { shopName: string; regis
   return { id, ...judgment };
 }
 
+const paperDecisions = ["ALLOWED", "REFUSED", "INFORMED"] as const;
+
+export function recordPaperPermit(actor: SessionUser, input: { decision: string; note: string; photo?: Uint8Array }) {
+  if (!actor.companyId || !["GUARD", "SUPERVISOR", "SECURITY_MANAGER"].includes(actor.role)) return { error: "err_permission" as const };
+  if (!paperDecisions.includes(input.decision as (typeof paperDecisions)[number])) return { error: "err_permit" as const };
+  const note = input.note.trim();
+  if (input.decision === "INFORMED" && (note.length < 2 || note.length > 300)) return { error: "err_permit" as const };
+  if (!input.photo) return { error: "err_file_type" as const };
+  const photo = readPhoto(input.photo);
+  if ("error" in photo) return photo;
+  const id = crypto.randomUUID();
+  const today = riyadhParts().date;
+  run(
+    `INSERT INTO permits (id, company_id, user_id, shop_name, registration_no, valid_until, created_at, decision, note, photo_path, photo_sha)
+     VALUES (?, ?, ?, ?, 'PAPER', ?, ?, ?, ?, ?, ?)`,
+    id,
+    actor.companyId,
+    actor.id,
+    input.decision,
+    today,
+    new Date().toISOString(),
+    input.decision,
+    note.slice(0, 300),
+    photo.path,
+    photo.sha,
+  );
+  audit(actor.companyId, actor.id, "permit.photo", "permit", id, { decision: input.decision });
+  return { id };
+}
+
 export function listPermits(actor: SessionUser) {
   if (!actor.companyId) return [];
-  return many<{ id: string; shop_name: string; registration_no: string; valid_until: string; created_at: string; name_ar: string }>(
-    `SELECT permits.id, permits.shop_name, permits.registration_no, permits.valid_until, permits.created_at, users.name_ar
+  return many<{ id: string; shop_name: string; registration_no: string; valid_until: string; created_at: string; name_ar: string; employee_no: string | null; decision: string | null; note: string | null; photo_path: string | null }>(
+    `SELECT permits.id, permits.shop_name, permits.registration_no, permits.valid_until, permits.created_at, permits.decision, permits.note, permits.photo_path, users.name_ar, users.employee_no
      FROM permits JOIN users ON users.id = permits.user_id
      WHERE permits.company_id = ? ORDER BY permits.created_at DESC LIMIT 40`,
     actor.companyId,
-  ).map((row) => ({ ...row, ...judgePermit(actor.companyId as string, row.registration_no, row.valid_until) }));
+  ).map((row) => (row.registration_no === "PAPER" ? { ...row, banned: false, expired: false, registration: "PAPER", reason: null, banName: null } : { ...row, ...judgePermit(actor.companyId as string, row.registration_no, row.valid_until) }));
 }
 
 export function listBans(actor: SessionUser) {
@@ -450,31 +480,61 @@ export function listBans(actor: SessionUser) {
   );
 }
 
-export function raiseAlert(actor: SessionUser, input: { kind: string; body: string }) {
-  if (!actor.companyId || (actor.role !== "GUARD" && actor.role !== "SUPERVISOR")) return { error: "err_permission" as const };
-  if (input.kind !== "FIGHT" && input.kind !== "SECURITY") return { error: "err_permission" as const };
+const alertKinds = ["FIGHT", "SECURITY", "EMERGENCY", "CHILD"] as const;
+
+export function raiseAlert(actor: SessionUser, input: { kind: string; body: string; photo?: Uint8Array }) {
+  if (!actor.companyId) return { error: "err_permission" as const };
+  if (!alertKinds.includes(input.kind as (typeof alertKinds)[number])) return { error: "err_permission" as const };
+  const quiet = input.kind === "CHILD";
+  const emergency = input.kind === "EMERGENCY";
+  const legacy = input.kind === "FIGHT" || input.kind === "SECURITY";
+  const allowed = legacy
+    ? actor.role === "GUARD" || actor.role === "SUPERVISOR"
+    : ["GUARD", "SUPERVISOR", "SECURITY_MANAGER", "HR", "TECH_ADMIN"].includes(actor.role);
+  if (!allowed) return { error: "err_permission" as const };
   const body = input.body.trim();
   if (body.length < 5 || body.length > 500) return { error: "err_alert" as const };
+  let photoPath: string | null = null;
+  let photoSha: string | null = null;
+  if (quiet || emergency) {
+    if (!input.photo) return { error: "err_file_type" as const };
+    const photo = readPhoto(input.photo);
+    if ("error" in photo) return photo;
+    photoPath = photo.path;
+    photoSha = photo.sha;
+  }
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
   run(
-    "INSERT INTO alerts (id, company_id, user_id, kind, body, status, created_at, acked_by, acked_at) VALUES (?, ?, ?, ?, ?, 'OPEN', ?, NULL, NULL)",
+    "INSERT INTO alerts (id, company_id, user_id, kind, body, status, created_at, acked_by, acked_at, photo_path, photo_sha) VALUES (?, ?, ?, ?, ?, 'OPEN', ?, NULL, NULL, ?, ?)",
     id,
     actor.companyId,
     actor.id,
     input.kind,
     body,
     createdAt,
+    photoPath,
+    photoSha,
   );
-  audit(actor.companyId, actor.id, "alert.raise", "alert", id, { kind: input.kind });
+  audit(actor.companyId, actor.id, quiet ? "child.report" : "alert.raise", "alert", id, { kind: input.kind });
   return { id };
 }
 
 export function openAlerts(companyId: string) {
-  return many<{ id: string; kind: string; body: string; created_at: string; name_ar: string; employee_no: string | null }>(
-    `SELECT alerts.id, alerts.kind, alerts.body, alerts.created_at, users.name_ar, users.employee_no
+  return many<{ id: string; kind: string; body: string; created_at: string; name_ar: string; employee_no: string | null; photo_path: string | null }>(
+    `SELECT alerts.id, alerts.kind, alerts.body, alerts.created_at, alerts.photo_path, users.name_ar, users.employee_no
      FROM alerts JOIN users ON users.id = alerts.user_id
-     WHERE alerts.company_id = ? AND alerts.status = 'OPEN' ORDER BY alerts.created_at DESC`,
+     WHERE alerts.company_id = ? AND alerts.status = 'OPEN' AND alerts.kind != 'CHILD' ORDER BY alerts.created_at DESC`,
+    companyId,
+  );
+}
+
+export function childReports(companyId: string) {
+  return many<{ id: string; body: string; status: string; created_at: string; name_ar: string; employee_no: string | null; photo_path: string | null }>(
+    `SELECT alerts.id, alerts.body, alerts.status, alerts.created_at, alerts.photo_path, users.name_ar, users.employee_no
+     FROM alerts JOIN users ON users.id = alerts.user_id
+     WHERE alerts.company_id = ? AND alerts.kind = 'CHILD'
+     ORDER BY alerts.created_at DESC LIMIT 30`,
     companyId,
   );
 }

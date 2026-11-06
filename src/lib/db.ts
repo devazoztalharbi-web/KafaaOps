@@ -31,7 +31,7 @@ export type UserRow = {
   auth_rev: number;
 };
 
-const schemaVersion = 9;
+const schemaVersion = 10;
 const globalDb = globalThis as unknown as { __kafaaDb?: DatabaseSync; __kafaaSchema?: number; __kafaaTech?: boolean };
 
 export function db() {
@@ -395,6 +395,18 @@ function migrate(database: DatabaseSync) {
   }
   if (userColumns.length > 0 && !userColumns.some((column) => column.name === "photo_path")) {
     database.exec("ALTER TABLE users ADD COLUMN photo_path TEXT");
+  }
+  const permitColumns = database.prepare("PRAGMA table_info(permits)").all() as Array<{ name: string }>;
+  if (permitColumns.length > 0 && !permitColumns.some((column) => column.name === "decision")) {
+    database.exec("ALTER TABLE permits ADD COLUMN decision TEXT");
+    database.exec("ALTER TABLE permits ADD COLUMN note TEXT");
+    database.exec("ALTER TABLE permits ADD COLUMN photo_path TEXT");
+    database.exec("ALTER TABLE permits ADD COLUMN photo_sha TEXT");
+  }
+  const alertColumns = database.prepare("PRAGMA table_info(alerts)").all() as Array<{ name: string }>;
+  if (alertColumns.length > 0 && !alertColumns.some((column) => column.name === "photo_path")) {
+    database.exec("ALTER TABLE alerts ADD COLUMN photo_path TEXT");
+    database.exec("ALTER TABLE alerts ADD COLUMN photo_sha TEXT");
   }
   database.exec(`
     CREATE TABLE IF NOT EXISTS capabilities (

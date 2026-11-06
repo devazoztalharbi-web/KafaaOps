@@ -1,5 +1,5 @@
 import { audit, many, one, run } from "./db";
-import { periodContaining } from "./time";
+import { periodContaining, riyadhParts } from "./time";
 import type { SessionUser } from "./auth";
 
 type TaskRow = {
@@ -115,4 +115,54 @@ export function suspendEmployee(actor: SessionUser, userId: string) {
   return { status: "SUSPENDED" as const };
 }
 
-export { OPEN };
+export function dutyLines(companyId: string, userId: string, date: string) {
+  const lines: string[] = [];
+  const point = one<{ label: string }>(
+    `SELECT site_points.label FROM postings
+     JOIN site_points ON site_points.id = postings.point_id
+     WHERE postings.company_id = ? AND postings.user_id = ? AND postings.duty_date = ?`,
+    companyId,
+    userId,
+    date,
+  );
+  if (point) lines.push(`التوجيه: ${point.label}`);
+  const punches = many<{ kind: string; server_time: string }>(
+    "SELECT kind, server_time FROM punches WHERE company_id = ? AND user_id = ? ORDER BY server_time DESC LIMIT 12",
+    companyId,
+    userId,
+  );
+  for (const punch of punches) {
+    if (riyadhParts(new Date(punch.server_time)).date !== date) continue;
+    lines.push(punch.kind === "IN" ? "بصمة دخول" : punch.kind === "OUT" ? "بصمة خروج" : "حركة حضور");
+  }
+  const permits = many<{ decision: string | null; note: string | null; created_at: string }>(
+    "SELECT decision, note, created_at FROM permits WHERE company_id = ? AND user_id = ? ORDER BY created_at DESC LIMIT 12",
+    companyId,
+    userId,
+  );
+  const decisionLabel: Record<string, string> = { ALLOWED: "سماح بالدخول", REFUSED: "منع الدخول", INFORMED: "إبلاغ صاحب التصريح" };
+  for (const permit of permits) {
+    if (riyadhParts(new Date(permit.created_at)).date !== date || !permit.decision) continue;
+    lines.push(`تصريح مصوّر: ${decisionLabel[permit.decision] ?? permit.decision}${permit.note ? ` · ${permit.note}` : ""}`);
+  }
+  const custody = many<{ kind: string; device_no: string | null; created_at: string }>(
+    "SELECT kind, device_no, created_at FROM custody_logs WHERE company_id = ? AND user_id = ? ORDER BY created_at DESC LIMIT 12",
+    companyId,
+    userId,
+  );
+  const custodyLabel: Record<string, string> = { RADIO: "استلام لاسلكي", RADIO_IN: "تسليم لاسلكي", VEHICLE_OUT: "استلام سيارة", VEHICLE_IN: "إعادة سيارة" };
+  for (const row of custody) {
+    if (riyadhParts(new Date(row.created_at)).date !== date) continue;
+    lines.push(`${custodyLabel[row.kind] ?? row.kind}${row.device_no ? ` · ${row.device_no}` : ""}`);
+  }
+  const alerts = many<{ kind: string; body: string; created_at: string }>(
+    "SELECT kind, body, created_at FROM alerts WHERE company_id = ? AND user_id = ? ORDER BY created_at DESC LIMIT 12",
+    companyId,
+    userId,
+  );
+  for (const alert of alerts) {
+    if (riyadhParts(new Date(alert.created_at)).date !== date) continue;
+    lines.push(`${alert.kind === "CHILD" ? "بلاغ طفل" : "بلاغ طارئ"}: ${alert.body}`);
+  }
+  return lines.length ? lines : ["لا يوجد إجراء مسجّل في هذا اليوم."];
+}
