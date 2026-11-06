@@ -21,7 +21,7 @@ check("a smile without a blink does not", !smileOnly, String(smileOnly));
 check("a blink without a head turn does not", !blinkOnly, String(blinkOnly));
 
 const guard = login("guard@kafaaops.local", "Kafaa.Ops#2026", { ip: "127.0.0.1", userAgent: "join-check" });
-const tech = login("tech@kafaaops.local", "Kafaa.Ops#2026", { ip: "127.0.0.1", userAgent: "join-check" });
+const tech = login("devabulaziz@outlook.com", "Kafaa.Ops#2026", { ip: "127.0.0.1", userAgent: "join-check" });
 const hr = login("hr@kafaaops.local", "Kafaa.Ops#2026", { ip: "127.0.0.1", userAgent: "join-check" });
 if (!("user" in guard) || !("user" in tech) || !("user" in hr) || !guard.user.companyId || !guard.user.siteId || !guard.user.managerId) {
   throw new Error("seed login failed");

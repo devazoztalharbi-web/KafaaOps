@@ -375,6 +375,11 @@ function migrate(database: DatabaseSync) {
   if (directionColumns.length > 0 && !directionColumns.some((column) => column.name === "status")) {
     database.exec("ALTER TABLE custody_directions ADD COLUMN status TEXT NOT NULL DEFAULT 'OPEN'");
   }
+  const techMail = "devabulaziz@outlook.com";
+  const taken = database.prepare("SELECT id FROM users WHERE email = ?").get(techMail);
+  if (!taken) {
+    database.prepare("UPDATE users SET email = ? WHERE email = ? AND role = 'TECH_ADMIN'").run(techMail, "tech@kafaaops.local");
+  }
 }
 
 function seed(database: DatabaseSync) {
@@ -405,7 +410,7 @@ function seed(database: DatabaseSync) {
      VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?, ?, ?)`,
   );
   insertUser.run(ids.platform, null, "admin@kafaaops.sa", "مدير المنصة", "Platform admin", password, "PLATFORM_ADMIN", null, null, null, null, now);
-  insertUser.run(ids.tech, companyId, "tech@kafaaops.local", "المسؤول التقني", "Technical admin", password, "TECH_ADMIN", "T-001", null, null, null, now);
+  insertUser.run(ids.tech, companyId, "devabulaziz@outlook.com", "المسؤول التقني", "Technical admin", password, "TECH_ADMIN", "T-001", null, null, null, now);
   insertUser.run(ids.hr, companyId, "hr@kafaaops.local", "الموارد البشرية", "Human resources", password, "HR", "H-001", null, null, null, now);
   insertUser.run(ids.manager, companyId, "manager@kafaaops.local", "مدير الأمن", "Security manager", password, "SECURITY_MANAGER", "S-001", null, null, null, now);
   insertUser.run(ids.supervisor, companyId, "supervisor@kafaaops.local", "مشرف الوردية", "Shift supervisor", password, "SUPERVISOR", "P-001", ids.manager, 1, null, now);

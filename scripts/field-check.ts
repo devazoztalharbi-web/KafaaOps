@@ -22,7 +22,7 @@ const jpeg = Buffer.from(
 const guard = login("guard@kafaaops.local", "Kafaa.Ops#2026", { ip: "127.0.0.1", userAgent: "field-check" });
 const supervisor = login("supervisor@kafaaops.local", "Kafaa.Ops#2026", { ip: "127.0.0.1", userAgent: "field-check" });
 const manager = login("manager@kafaaops.local", "Kafaa.Ops#2026", { ip: "127.0.0.1", userAgent: "field-check" });
-const tech = login("tech@kafaaops.local", "Kafaa.Ops#2026", { ip: "127.0.0.1", userAgent: "field-check" });
+const tech = login("devabulaziz@outlook.com", "Kafaa.Ops#2026", { ip: "127.0.0.1", userAgent: "field-check" });
 if (!("user" in guard) || !("user" in supervisor) || !("user" in manager) || !("user" in tech) || !guard.user.companyId || !guard.user.siteId) throw new Error("seed login failed");
 const site = db().prepare("SELECT latitude, longitude FROM sites WHERE id = ?").get(guard.user.siteId) as { latitude: number; longitude: number };
 appendChain("punches", guard.user.companyId, {

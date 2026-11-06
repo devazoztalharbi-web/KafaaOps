@@ -14,7 +14,7 @@ function check(name: string, ok: boolean, detail: string) {
 }
 
 const supervisor = login("supervisor@kafaaops.local", "Kafaa.Ops#2026", { ip: "127.0.0.1", userAgent: "task-check" });
-const tech = login("tech@kafaaops.local", "Kafaa.Ops#2026", { ip: "127.0.0.1", userAgent: "task-check" });
+const tech = login("devabulaziz@outlook.com", "Kafaa.Ops#2026", { ip: "127.0.0.1", userAgent: "task-check" });
 const guard = login("guard@kafaaops.local", "Kafaa.Ops#2026", { ip: "127.0.0.1", userAgent: "task-check" });
 if (!("user" in supervisor) || !("user" in tech) || !("user" in guard) || !guard.user.companyId || !guard.user.siteId) {
   throw new Error("seed login failed");
