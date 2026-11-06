@@ -146,6 +146,7 @@ export async function placeAction(formData: FormData) {
     lat: readTypedNumber(formData.get("lat")),
     lng: readTypedNumber(formData.get("lng")),
     radius: readTypedNumber(formData.get("radius")),
+    incentive: String(formData.get("incentive") ?? ""),
   });
   redirect(`/app?e=${"error" in result ? result.error : "ok"}`);
 }

@@ -206,16 +206,17 @@ export function setSiteFence(actor: SessionUser, input: { siteId: string; lat: n
   return { radius: input.radius };
 }
 
-export function addPlace(actor: SessionUser, input: { name: string; city: string; lat: number; lng: number; radius: number }) {
+export function addPlace(actor: SessionUser, input: { name: string; city: string; lat: number; lng: number; radius: number; incentive?: string }) {
   if (!actor.companyId || actor.role !== "TECH_ADMIN") return { error: "err_permission" as const };
   const name = input.name.trim();
   const city = input.city.trim();
+  const incentive = (input.incentive ?? "").trim().slice(0, 160);
   if (name.length < 2 || name.length > 80 || city.length < 2 || city.length > 40) return { error: "err_place" as const };
   if (!Number.isInteger(input.radius) || input.radius < 30 || input.radius > 5000) return { error: "err_fence" as const };
   if (!Number.isFinite(input.lat) || !Number.isFinite(input.lng) || Math.abs(input.lat) > 90 || Math.abs(input.lng) > 180) return { error: "err_fence" as const };
   const id = crypto.randomUUID();
   run(
-    "INSERT INTO sites (id, company_id, parent_id, kind, name_ar, name_en, city, latitude, longitude, radius_m, active) VALUES (?, ?, NULL, 'COMPLEX', ?, ?, ?, ?, ?, ?, 1)",
+    "INSERT INTO sites (id, company_id, parent_id, kind, name_ar, name_en, city, latitude, longitude, radius_m, incentive, active) VALUES (?, ?, NULL, 'COMPLEX', ?, ?, ?, ?, ?, ?, ?, 1)",
     id,
     actor.companyId,
     name,
@@ -224,6 +225,7 @@ export function addPlace(actor: SessionUser, input: { name: string; city: string
     input.lat,
     input.lng,
     input.radius,
+    incentive,
   );
   audit(actor.companyId, actor.id, "place.add", "site", id, { name, city, radius: input.radius });
   return { id };

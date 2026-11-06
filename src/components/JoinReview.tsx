@@ -57,7 +57,7 @@ export function JoinReview({
             </select>
           </label>
         ) : <input type="hidden" name="role" value="GUARD" />}
-        <label className="text-sm">الموقع
+        <label className="text-sm">المشروع
           <select name="siteId" className="mt-1 w-full rounded-xl border border-line px-3 py-2">{sites.map((site) => <option key={site.id} value={site.id}>{site.name_ar}</option>)}</select>
         </label>
         <label className="text-sm">الوردية

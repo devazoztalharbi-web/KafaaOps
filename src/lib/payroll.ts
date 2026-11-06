@@ -36,14 +36,17 @@ export function weekRows(dates: string[]) {
   return weeks;
 }
 
-type Person = { id: string; name_ar: string; employee_no: string | null; role: string; shift_no: number | null; manager_id: string | null };
+type Person = { id: string; name_ar: string; employee_no: string | null; role: string; shift_no: number | null; manager_id: string | null; site_id: string | null; project_name: string | null; incentive: string | null };
 type Shift = { shift_no: number; start_minute: number; end_minute: number; grace_minute: number };
 
 export function movement(companyId: string, now = new Date()) {
   const period = periodContaining(now);
   const dates = eachDate(period.start, period.end);
   const people = many<Person>(
-    "SELECT id, name_ar, employee_no, role, shift_no, manager_id FROM users WHERE company_id = ? AND role IN ('GUARD', 'SUPERVISOR') AND status = 'ACTIVE' ORDER BY name_ar",
+    `SELECT users.id, users.name_ar, users.employee_no, users.role, users.shift_no, users.manager_id, users.site_id, sites.name_ar AS project_name, sites.incentive
+     FROM users LEFT JOIN sites ON sites.id = users.site_id
+     WHERE users.company_id = ? AND users.role IN ('GUARD', 'SUPERVISOR') AND users.status = 'ACTIVE'
+     ORDER BY sites.name_ar, users.name_ar`,
     companyId,
   );
   const shifts = new Map(
@@ -88,9 +91,27 @@ export function movement(companyId: string, now = new Date()) {
     ) as Record<string, { mark: DayMark; late: number }>;
     const absent = Object.values(days).filter((day) => day.mark === "ABSENT").length;
     const lateMinutes = Object.values(days).reduce((sum, day) => sum + day.late, 0);
-    return { ...person, days, absent, lateMinutes };
+    return {
+      ...person,
+      projectId: person.site_id ?? "",
+      projectName: person.project_name ?? "بدون مشروع",
+      incentive: person.incentive?.trim() ?? "",
+      days,
+      absent,
+      lateMinutes,
+    };
   });
   return { period, dates, weeks: weekRows(dates), rows };
+}
+
+export function projectGroups<T extends { projectId: string; projectName: string; incentive: string }>(rows: T[]) {
+  const groups: Array<{ id: string; name: string; incentive: string; rows: T[] }> = [];
+  for (const row of rows) {
+    const found = groups.find((group) => group.id === row.projectId);
+    if (found) found.rows.push(row);
+    else groups.push({ id: row.projectId, name: row.projectName, incentive: row.incentive, rows: [row] });
+  }
+  return groups;
 }
 
 export function lateLabel(minutes: number) {

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { issuePayrollAction } from "@/server/actions";
-import { canOpenPayroll, lateLabel, movement, payrollRequests } from "@/lib/payroll";
+import { canOpenPayroll, lateLabel, movement, payrollRequests, projectGroups } from "@/lib/payroll";
 import { currentUser } from "@/server/actions";
 import type { DayMark } from "@/lib/payroll";
 
@@ -38,37 +38,43 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
   return (
     <section>
       <h1 className="text-2xl font-semibold">{user.role === "SUPERVISOR" ? "مسييرات الوردية" : "مسير الحركة"}</h1>
-      <p className="mt-2 text-sm text-ink/70">من {sheet.period.start} إلى {sheet.period.end}. يوم ٢٠ هو يوم المراجعة المعتاد، والطباعة متاحة في أي يوم قبله.</p>
+      <p className="mt-2 text-sm text-ink/70">من {sheet.period.start} إلى {sheet.period.end}. كل مشروع له كشفه وحافزه. الموظف يُربط بالمشروع عند قبوله، فيُحسب مسيره داخل ذلك المشروع.</p>
       <p className="mt-2 text-sm">ح حاضر · ت متأخر · غ غياب · ر راحة · إ إجازة · · الوردية لم تغلق</p>
       {query.e === "ok" ? <p className="mt-3 text-sm">وصل المسير إلى الموظفين المطلوبين.</p> : null}
-      <div className="mt-4 overflow-x-auto rounded-2xl border border-line bg-card">
-        <table className="min-w-max border-collapse text-center text-xs">
-          <thead>
-            <tr>
-              <th className="sticky right-0 bg-card px-3 py-2 text-right">الموظف</th>
-              <th className="px-2 py-2">أيام الغياب</th>
-              <th className="px-2 py-2">ساعات التأخير</th>
-              {sheet.dates.map((date) => (
-                <th key={date} className="px-1 py-2 font-normal">{date.slice(8)}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id} className="border-t border-line">
-                <th className="sticky right-0 bg-card px-3 py-2 text-right font-medium">{row.name_ar}</th>
-                <td className="px-2 py-2">{row.absent}</td>
-                <td className="px-2 py-2">{lateLabel(row.lateMinutes)}</td>
+      {projectGroups(rows).map((group) => (
+        <div key={group.id || "none"} className="mt-4 overflow-x-auto rounded-2xl border border-line bg-card">
+          <div className="px-4 py-3 text-sm">
+            <p className="font-semibold">{group.name}</p>
+            <p className="text-ink/70">{group.incentive || "لم يُكتب حافز لهذا المشروع بعد."}</p>
+          </div>
+          <table className="min-w-max border-collapse text-center text-xs">
+            <thead>
+              <tr>
+                <th className="sticky right-0 bg-card px-3 py-2 text-right">الموظف</th>
+                <th className="px-2 py-2">أيام الغياب</th>
+                <th className="px-2 py-2">ساعات التأخير</th>
                 {sheet.dates.map((date) => (
-                  <td key={date} className="p-1">
-                    <span className={`inline-flex h-6 w-6 items-center justify-center rounded ${tone[row.days[date].mark]}`}>{label[row.days[date].mark]}</span>
-                  </td>
+                  <th key={date} className="px-1 py-2 font-normal">{date.slice(8)}</th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {group.rows.map((row) => (
+                <tr key={row.id} className="border-t border-line">
+                  <th className="sticky right-0 bg-card px-3 py-2 text-right font-medium">{row.name_ar}</th>
+                  <td className="px-2 py-2">{row.absent}</td>
+                  <td className="px-2 py-2">{lateLabel(row.lateMinutes)}</td>
+                  {sheet.dates.map((date) => (
+                    <td key={date} className="p-1">
+                      <span className={`inline-flex h-6 w-6 items-center justify-center rounded ${tone[row.days[date].mark]}`}>{label[row.days[date].mark]}</span>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
       <p className="mt-4"><Link href="/app/payroll/print" className="rounded-xl bg-ink px-3 py-2 text-paper">فتح التقرير للطباعة وحفظ PDF</Link></p>
       {user.role === "SUPERVISOR" || user.role === "TECH_ADMIN" || user.role === "SECURITY_MANAGER" || user.role === "HR" ? (
         <form action={issuePayrollAction} className="mt-6 rounded-2xl border border-line bg-card p-4">

@@ -31,7 +31,7 @@ export type UserRow = {
   auth_rev: number;
 };
 
-const schemaVersion = 11;
+const schemaVersion = 12;
 const globalDb = globalThis as unknown as { __kafaaDb?: DatabaseSync; __kafaaSchema?: number; __kafaaTech?: boolean };
 
 export function db() {
@@ -388,6 +388,9 @@ function migrate(database: DatabaseSync) {
   const siteColumns = database.prepare("PRAGMA table_info(sites)").all() as Array<{ name: string }>;
   if (siteColumns.length > 0 && !siteColumns.some((column) => column.name === "city")) {
     database.exec("ALTER TABLE sites ADD COLUMN city TEXT");
+  }
+  if (siteColumns.length > 0 && !siteColumns.some((column) => column.name === "incentive")) {
+    database.exec("ALTER TABLE sites ADD COLUMN incentive TEXT");
   }
   const userColumns = database.prepare("PRAGMA table_info(users)").all() as Array<{ name: string }>;
   if (userColumns.length > 0 && !userColumns.some((column) => column.name === "auth_rev")) {

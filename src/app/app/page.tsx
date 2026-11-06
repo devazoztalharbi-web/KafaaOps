@@ -30,7 +30,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     ? many<{ id: string; name_ar: string }>("SELECT id, name_ar FROM users WHERE company_id = ? AND role = 'GUARD' AND status = 'ACTIVE' AND manager_id = ? ORDER BY name_ar", user.companyId, user.id)
     : [];
   const places = user.role === "TECH_ADMIN" || canEditFence
-    ? many<{ id: string; name_ar: string; name_en: string; city: string | null; radius_m: number | null }>("SELECT id, name_ar, name_en, city, radius_m FROM sites WHERE company_id = ? AND kind = 'COMPLEX' AND active = 1 ORDER BY name_ar", user.companyId)
+    ? many<{ id: string; name_ar: string; name_en: string; city: string | null; radius_m: number | null; incentive: string | null }>("SELECT id, name_ar, name_en, city, radius_m, incentive FROM sites WHERE company_id = ? AND kind = 'COMPLEX' AND active = 1 ORDER BY name_ar", user.companyId)
     : [];
   const people = user.role === "TECH_ADMIN"
     ? many<{ id: string; name_ar: string; role: string }>("SELECT id, name_ar, role FROM users WHERE company_id = ? AND status = 'ACTIVE' AND id != ? ORDER BY name_ar", user.companyId, user.id)
@@ -112,11 +112,15 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               <span className="font-semibold">المسافة المسموحة للبصمة والسيلفي (متر)</span>
               <input name="radius" required inputMode="numeric" placeholder="900" className="rounded-xl border border-line px-3 py-2" />
             </label>
+            <label className="grid gap-1 text-sm">
+              <span className="font-semibold">حافز هذا المشروع</span>
+              <input name="incentive" placeholder="كما تعتمده الشركة لهذا المشروع" className="rounded-xl border border-line px-3 py-2" />
+            </label>
             <button className="rounded-xl bg-ink px-3 py-2 text-paper" type="submit">أضف الموقع</button>
           </form>
           {places.length ? (
             <ul className="space-y-2 text-sm">
-              {places.map((place) => <li key={place.id} className="rounded-xl border border-line bg-card px-4 py-2">{place.city} · {place.name_ar} · {place.radius_m ?? "—"} م</li>)}
+              {places.map((place) => <li key={place.id} className="rounded-xl border border-line bg-card px-4 py-2">{place.city} · {place.name_ar} · {place.radius_m ?? "—"} م{place.incentive ? ` · ${place.incentive}` : ""}</li>)}
             </ul>
           ) : <p className="text-sm">لا توجد أماكن بعد.</p>}
         </div>
