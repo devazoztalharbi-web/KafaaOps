@@ -55,12 +55,17 @@ export function db() {
   return globalDb.__kafaaDb;
 }
 
+function plainRow<T>(value: unknown): T {
+  return { ...(value as object) } as T;
+}
+
 export function one<T>(sql: string, ...params: Array<string | number | null>) {
-  return db().prepare(sql).get(...params) as T | undefined;
+  const value = db().prepare(sql).get(...params);
+  return value === undefined ? undefined : plainRow<T>(value);
 }
 
 export function many<T>(sql: string, ...params: Array<string | number | null>) {
-  return db().prepare(sql).all(...params) as T[];
+  return db().prepare(sql).all(...params).map((value) => plainRow<T>(value));
 }
 
 export function run(sql: string, ...params: Array<string | number | null | Uint8Array>) {
