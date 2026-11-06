@@ -22,7 +22,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       ).filter((guard) => actor.role !== "SUPERVISOR" || guard.manager_id === actor.id)
     : [];
   const sites = canAssign
-    ? many<{ id: string; name_ar: string }>("SELECT id, name_ar FROM sites WHERE company_id = ? AND kind = 'SITE' AND active = 1 ORDER BY name_ar", actor.companyId)
+    ? many<{ id: string; name_ar: string }>("SELECT id, name_ar FROM sites WHERE company_id = ? AND kind IN ('COMPLEX', 'SITE') AND active = 1 ORDER BY name_ar", actor.companyId)
     : [];
   const staff = ["TECH_ADMIN", "SECURITY_MANAGER"].includes(actor.role)
     ? many<{ id: string; name_ar: string }>(

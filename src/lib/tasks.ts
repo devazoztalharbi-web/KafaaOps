@@ -49,7 +49,7 @@ export function createTask(actor: SessionUser, input: { guardId: string; siteId:
   const guard = guardInCompany(actor.companyId, input.guardId);
   if (!guard || guard.role !== "GUARD") return { error: "err_permission" as const };
   if (actor.role === "SUPERVISOR" && guard.manager_id !== actor.id) return { error: "err_permission" as const };
-  const site = one<{ id: string }>("SELECT id FROM sites WHERE id = ? AND company_id = ? AND kind = 'SITE' AND active = 1", input.siteId, actor.companyId);
+  const site = one<{ id: string }>("SELECT id FROM sites WHERE id = ? AND company_id = ? AND kind IN ('COMPLEX', 'SITE') AND active = 1", input.siteId, actor.companyId);
   if (!site) return { error: "err_permission" as const };
   const id = crypto.randomUUID();
   const now = new Date().toISOString();

@@ -91,7 +91,7 @@ export function approveJoin(actor: SessionUser, input: { userId: string; siteId:
     return { employeeNo };
   };
   if (role === "HR") return activate(`H-${stamp}`, null, null, null);
-  const site = one<{ id: string }>("SELECT id FROM sites WHERE id = ? AND company_id = ? AND kind = 'SITE' AND active = 1", input.siteId, actor.companyId);
+  const site = one<{ id: string }>("SELECT id FROM sites WHERE id = ? AND company_id = ? AND kind IN ('COMPLEX', 'SITE') AND active = 1", input.siteId, actor.companyId);
   if (!site) return { error: "err_join" as const };
   if (role === "SECURITY_MANAGER") return activate(`S-${stamp}`, site.id, null, null);
   if (role === "SUPERVISOR") {

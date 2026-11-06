@@ -7,7 +7,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
   const query = await searchParams;
   if (!user?.companyId || !canApproveJoin(user)) return <p>قبول الموظفين للتقني، أو لمن منحه التقني هذه الصلاحية.</p>;
   const pending = listPending(user);
-  const sites = many<{ id: string; name_ar: string }>("SELECT id, name_ar FROM sites WHERE company_id = ? AND kind = 'SITE' AND active = 1", user.companyId);
+  const sites = many<{ id: string; name_ar: string }>("SELECT id, name_ar FROM sites WHERE company_id = ? AND kind IN ('COMPLEX', 'SITE') AND active = 1 ORDER BY name_ar", user.companyId);
   const managers = many<{ id: string; name_ar: string }>("SELECT id, name_ar FROM users WHERE company_id = ? AND role = 'SECURITY_MANAGER' AND status = 'ACTIVE'", user.companyId);
   const supervisors = many<{ id: string; name_ar: string; shift_no: number | null }>("SELECT id, name_ar, shift_no FROM users WHERE company_id = ? AND role = 'SUPERVISOR' AND status = 'ACTIVE'", user.companyId);
   return (

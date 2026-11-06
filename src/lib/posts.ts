@@ -7,7 +7,7 @@ export function addPoint(actor: SessionUser, siteId: string, label: string) {
   if (!hasCapability(actor, "edit_fence") || !actor.companyId) return { error: "err_permission" as const };
   const name = label.trim();
   if (name.length < 1 || name.length > 40 || /[\r\n]/.test(name)) return { error: "err_label" as const };
-  const site = one<{ id: string }>("SELECT id FROM sites WHERE id = ? AND company_id = ? AND kind = 'SITE' AND active = 1", siteId, actor.companyId);
+  const site = one<{ id: string }>("SELECT id FROM sites WHERE id = ? AND company_id = ? AND kind IN ('COMPLEX', 'SITE') AND active = 1", siteId, actor.companyId);
   if (!site) return { error: "err_permission" as const };
   const existing = one<{ id: string }>("SELECT id FROM site_points WHERE company_id = ? AND site_id = ? AND label = ?", actor.companyId, site.id, name);
   if (existing) return { error: "err_label" as const };

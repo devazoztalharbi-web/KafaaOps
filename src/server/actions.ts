@@ -129,6 +129,9 @@ export async function placeAction(formData: FormData) {
     name: String(formData.get("name") ?? ""),
     city: String(formData.get("city") ?? ""),
     kind: String(formData.get("kind") ?? ""),
+    lat: Number(formData.get("lat")),
+    lng: Number(formData.get("lng")),
+    radius: Number(formData.get("radius")),
   });
   redirect(`/app?e=${"error" in result ? result.error : "ok"}`);
 }

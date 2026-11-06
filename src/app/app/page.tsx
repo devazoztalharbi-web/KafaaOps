@@ -2,7 +2,7 @@ import { many, one } from "@/lib/db";
 import { grantedCapabilities, hasCapability } from "@/lib/grants";
 import { listPoints, teamPostings, todayPosting } from "@/lib/posts";
 import { riyadhParts } from "@/lib/time";
-import { capabilityAction, currentUser, directAction, fenceAction, placeAction, pointAction, workSiteAction } from "@/server/actions";
+import { capabilityAction, currentUser, directAction, fenceAction, placeAction, pointAction } from "@/server/actions";
 
 const roles: Record<string, string> = {
   PLATFORM_ADMIN: "مدير المنصة",
@@ -28,11 +28,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const guards = user.role === "SUPERVISOR"
     ? many<{ id: string; name_ar: string }>("SELECT id, name_ar FROM users WHERE company_id = ? AND role = 'GUARD' AND status = 'ACTIVE' AND manager_id = ? ORDER BY name_ar", user.companyId, user.id)
     : [];
-  const places = user.role === "TECH_ADMIN"
-    ? many<{ id: string; name_ar: string; name_en: string; city: string | null }>("SELECT id, name_ar, name_en, city FROM sites WHERE company_id = ? AND kind = 'COMPLEX' AND active = 1 ORDER BY name_ar", user.companyId)
-    : [];
-  const sites = canEditFence
-    ? many<{ id: string; name_ar: string; latitude: number | null; longitude: number | null; radius_m: number | null }>("SELECT id, name_ar, latitude, longitude, radius_m FROM sites WHERE company_id = ? AND kind = 'SITE' AND active = 1 ORDER BY name_ar", user.companyId)
+  const places = user.role === "TECH_ADMIN" || canEditFence
+    ? many<{ id: string; name_ar: string; name_en: string; city: string | null; radius_m: number | null }>("SELECT id, name_ar, name_en, city, radius_m FROM sites WHERE company_id = ? AND kind = 'COMPLEX' AND active = 1 ORDER BY name_ar", user.companyId)
     : [];
   const people = user.role === "TECH_ADMIN"
     ? many<{ id: string; name_ar: string; role: string }>("SELECT id, name_ar, role FROM users WHERE company_id = ? AND status = 'ACTIVE' AND id != ? ORDER BY name_ar", user.companyId, user.id)
@@ -77,55 +74,48 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       {user.role === "TECH_ADMIN" ? (
         <div className="mt-6 space-y-4">
           <h2 className="font-semibold">المواقع</h2>
-          <p className="text-sm leading-7 text-ink/70">اكتب اسم المجمع أو السوق أو الموقع، والمدينة. ثم أضف نقطة العمل وإحداثياتها والمسافة التي تقبل البصمة داخلها.</p>
-          <form action={placeAction} className="grid gap-3 rounded-2xl border border-line bg-card p-4 md:grid-cols-4">
+          <p className="text-sm leading-7 text-ink/70">اكتب اسم المجمع أو السوق، والمدينة، وإحداثيات المكان مرة واحدة، والمسافة التي تُقبل البصمة داخلها. سين 1 والبوابة أسماء داخل المكان، بلا إحداثيات.</p>
+          <form action={placeAction} className="grid gap-3 rounded-2xl border border-line bg-card p-4 md:grid-cols-3">
             <input name="name" required placeholder="اسم المجمع أو السوق" className="rounded-xl border border-line px-3 py-2" />
             <input name="city" required placeholder="المدينة" className="rounded-xl border border-line px-3 py-2" />
             <select name="kind" className="rounded-xl border border-line px-3 py-2">
               <option value="مجمع">مجمع</option>
+              <option value="مجمع تجاري">مجمع تجاري</option>
               <option value="سوق">سوق</option>
+              <option value="سوق تجاري">سوق تجاري</option>
               <option value="موقع">موقع</option>
             </select>
-            <button className="rounded-xl bg-ink px-3 py-2 text-paper" type="submit">أضف المكان</button>
+            <input name="lat" required type="number" step="any" placeholder="خط العرض" className="rounded-xl border border-line px-3 py-2" />
+            <input name="lng" required type="number" step="any" placeholder="خط الطول" className="rounded-xl border border-line px-3 py-2" />
+            <input name="radius" required type="number" min={30} max={5000} placeholder="المسافة بالمتر، مثل 900" className="rounded-xl border border-line px-3 py-2" />
+            <button className="rounded-xl bg-ink px-3 py-2 text-paper md:col-span-3" type="submit">أضف المكان</button>
           </form>
           {places.length ? (
             <ul className="space-y-2 text-sm">
-              {places.map((place) => <li key={place.id} className="rounded-xl border border-line bg-card px-4 py-2">{place.name_en} · {place.name_ar} · {place.city}</li>)}
+              {places.map((place) => <li key={place.id} className="rounded-xl border border-line bg-card px-4 py-2">{place.name_en} · {place.name_ar} · {place.city} · {place.radius_m ?? "—"} م</li>)}
             </ul>
           ) : <p className="text-sm">لا توجد أماكن بعد.</p>}
-          {places.length ? (
-            <form action={workSiteAction} className="grid gap-3 rounded-2xl border border-line bg-card p-4 md:grid-cols-3">
-              <select name="parentId" className="rounded-xl border border-line px-3 py-2">
-                {places.map((place) => <option key={place.id} value={place.id}>{place.name_ar}</option>)}
-              </select>
-              <input name="name" required placeholder="اسم النقطة، مثل البوابة" className="rounded-xl border border-line px-3 py-2" />
-              <input name="lat" required type="number" step="any" placeholder="خط العرض" className="rounded-xl border border-line px-3 py-2" />
-              <input name="lng" required type="number" step="any" placeholder="خط الطول" className="rounded-xl border border-line px-3 py-2" />
-              <input name="radius" required type="number" min={30} max={5000} placeholder="المسافة بالمتر، مثل 900" className="rounded-xl border border-line px-3 py-2" />
-              <button className="rounded-xl bg-ink px-3 py-2 text-paper" type="submit">أضف النقطة ومسافتها</button>
-            </form>
-          ) : null}
         </div>
       ) : null}
 
-      {canEditFence && sites.length ? (
+      {canEditFence && places.length ? (
         <form action={fenceAction} className="mt-6 grid gap-3 rounded-2xl border border-line bg-card p-4 md:grid-cols-4">
           <select name="siteId" className="rounded-xl border border-line px-3 py-2">
-            {sites.map((site) => <option key={site.id} value={site.id}>{site.name_ar} · {site.radius_m ?? "—"} م</option>)}
+            {places.map((place) => <option key={place.id} value={place.id}>{place.name_ar} · {place.radius_m ?? "—"} م</option>)}
           </select>
           <input name="lat" required type="number" step="any" placeholder="خط العرض" className="rounded-xl border border-line px-3 py-2" />
           <input name="lng" required type="number" step="any" placeholder="خط الطول" className="rounded-xl border border-line px-3 py-2" />
-          <input name="radius" required type="number" min={30} max={5000} placeholder="المسافة بالمتر، مثل 400" className="rounded-xl border border-line px-3 py-2" />
-          <button className="rounded-xl bg-ink px-3 py-2 text-paper md:col-span-4" type="submit">احفظ إحداثيات الموقع ومسافته</button>
+          <input name="radius" required type="number" min={30} max={5000} placeholder="المسافة بالمتر، مثل 900" className="rounded-xl border border-line px-3 py-2" />
+          <button className="rounded-xl bg-ink px-3 py-2 text-paper md:col-span-4" type="submit">احفظ إحداثيات المجمع ومسافته</button>
         </form>
       ) : null}
-      {canEditFence && sites.length ? (
+      {canEditFence && places.length ? (
         <form action={pointAction} className="mt-6 grid gap-3 rounded-2xl border border-line bg-card p-4 md:grid-cols-3">
           <select name="siteId" className="rounded-xl border border-line px-3 py-2">
-            {sites.map((site) => <option key={site.id} value={site.id}>{site.name_ar}</option>)}
+            {places.map((place) => <option key={place.id} value={place.id}>{place.name_ar}</option>)}
           </select>
-          <input name="label" required placeholder="سين 1 أو زون 2" className="rounded-xl border border-line px-3 py-2" />
-          <button className="rounded-xl bg-ink px-3 py-2 text-paper" type="submit">أضف مسمى للموقع</button>
+          <input name="label" required placeholder="سين 1 أو البوابة" className="rounded-xl border border-line px-3 py-2" />
+          <button className="rounded-xl bg-ink px-3 py-2 text-paper" type="submit">أضف اسماً داخل المكان</button>
         </form>
       ) : null}
       {canEditFence && points.length ? (
