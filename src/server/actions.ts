@@ -335,7 +335,8 @@ export async function reviewJoinAction(formData: FormData) {
           employeeNo: String(formData.get("employeeNo") ?? ""),
           photo: await photo(formData.get("photo")),
         });
-  redirect(`/app/people?e=${"error" in result ? result.error : "ok"}`);
+  const mail = !("error" in result) && "email" in result && result.email ? `&mail=${encodeURIComponent(result.email)}` : "";
+  redirect(`/app/people?e=${"error" in result ? result.error : "ok"}${mail}`);
 }
 
 export async function resetPasswordAction(formData: FormData) {

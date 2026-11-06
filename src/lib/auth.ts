@@ -1,5 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { audit, one, run, type Role, type UserRow } from "./db";
+import { audit, many, one, run, type Role, type UserRow } from "./db";
 import { hashPassword, sha256, verifyPassword } from "./crypto";
 
 const IDLE_MINUTES: Record<Role, number> = {
@@ -70,7 +70,12 @@ export function login(email: string, password: string, meta: { ip: string; userA
   if (throttle?.locked_until && Date.parse(throttle.locked_until) > Date.now()) {
     return { error: "err_locked" as const };
   }
-  const user = one<UserRow>("SELECT * FROM users WHERE email = ?", email.trim().toLowerCase());
+  const typed = email.trim().toLowerCase();
+  const byEmail = one<UserRow>("SELECT * FROM users WHERE email = ?", typed);
+  const byNumber = !byEmail && typed && !typed.includes("@")
+    ? many<UserRow>("SELECT * FROM users WHERE employee_no IS NOT NULL AND lower(employee_no) = ?", typed)
+    : [];
+  const user = byEmail ?? (byNumber.length === 1 ? byNumber[0] : undefined);
   const stored = user?.password_hash ?? dummyHash;
   const passwordOk = verifyPassword(password, stored);
   if (user && passwordOk && user.status === "PENDING") return { error: "err_pending" as const };
@@ -86,7 +91,7 @@ export function login(email: string, password: string, meta: { ip: string; userA
       fails,
       locked,
     );
-    return { error: "err_bad_login" as const };
+    return { error: user ? "err_bad_login" as const : "err_unknown" as const };
   }
   run("UPDATE login_throttle SET fails = 0, locked_until = NULL WHERE email_hash = ?", key);
   run("UPDATE users SET failed_logins = 0, locked_until = NULL WHERE id = ?", user.id);

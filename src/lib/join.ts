@@ -152,7 +152,7 @@ export function approveJoin(actor: SessionUser, input: { userId: string; siteId?
   if (!canApproveJoin(actor) || !actor.companyId) return { error: "err_permission" as const };
   const role: JoinRole = joinRoles.includes(input.role as JoinRole) ? (input.role as JoinRole) : "GUARD";
   if (role !== "GUARD" && actor.role !== "TECH_ADMIN") return { error: "err_permission" as const };
-  const person = one<{ id: string }>("SELECT id FROM users WHERE id = ? AND company_id = ? AND status = 'PENDING'", input.userId, actor.companyId);
+  const person = one<{ id: string; email: string }>("SELECT id, email FROM users WHERE id = ? AND company_id = ? AND status = 'PENDING'", input.userId, actor.companyId);
   if (!person) return { error: "err_join" as const };
   const stamp = String(Date.now()).slice(-6);
   const portrait = input.photo && input.photo.byteLength > 0 ? storePortrait(input.photo) : null;
@@ -171,7 +171,7 @@ export function approveJoin(actor: SessionUser, input: { userId: string; siteId?
       person.id,
     );
     audit(actor.companyId!, actor.id, "join.approve", "user", person.id, { role, siteId, shiftNo, employeeNo });
-    return { employeeNo };
+    return { employeeNo, email: person.email };
   };
   if (role === "HR") return activate(`H-${stamp}`, null, null, null);
   const siteId = projectByName(actor.companyId, actor.id, input.siteId, input.projectName);
