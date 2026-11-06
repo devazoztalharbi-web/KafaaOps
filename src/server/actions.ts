@@ -327,11 +327,13 @@ export async function reviewJoinAction(formData: FormData) {
       : approveJoin(user, {
           userId: String(formData.get("userId") ?? ""),
           siteId: String(formData.get("siteId") ?? ""),
+          projectName: String(formData.get("projectName") ?? ""),
           shiftNo: Number(formData.get("shiftNo")),
           managerId: String(formData.get("managerId") ?? ""),
+          linkText: String(formData.get("linkText") ?? ""),
           role: String(formData.get("role") ?? "GUARD"),
           employeeNo: String(formData.get("employeeNo") ?? ""),
-          photo: formData.get("withPhoto") === "1" ? await photo(formData.get("photo")) : undefined,
+          photo: await photo(formData.get("photo")),
         });
   redirect(`/app/people?e=${"error" in result ? result.error : "ok"}`);
 }

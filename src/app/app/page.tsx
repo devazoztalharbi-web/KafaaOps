@@ -120,7 +120,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           </form>
           {places.length ? (
             <ul className="space-y-2 text-sm">
-              {places.map((place) => <li key={place.id} className="rounded-xl border border-line bg-card px-4 py-2">{place.city} · {place.name_ar} · {place.radius_m ?? "—"} م{place.incentive ? ` · ${place.incentive}` : ""}</li>)}
+              {places.map((place) => <li key={place.id} className="rounded-xl border border-line bg-card px-4 py-2">{[place.city, place.name_ar, `${place.radius_m ?? "—"} م`, place.incentive].filter(Boolean).join(" · ")}</li>)}
             </ul>
           ) : <p className="text-sm">لا توجد أماكن بعد.</p>}
         </div>
@@ -131,7 +131,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <label className="grid gap-1 text-sm">
             <span className="font-semibold">المجمع</span>
             <select name="siteId" className="rounded-xl border border-line px-3 py-2">
-              {places.map((place) => <option key={place.id} value={place.id}>{place.city} · {place.name_ar} · {place.radius_m ?? "—"} م</option>)}
+              {places.map((place) => <option key={place.id} value={place.id}>{[place.city, place.name_ar, `${place.radius_m ?? "—"} م`].filter(Boolean).join(" · ")}</option>)}
             </select>
           </label>
           <label className="flex items-center gap-3 text-sm">

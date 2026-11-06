@@ -95,7 +95,60 @@ function storePortrait(bytes: Uint8Array) {
   return { path: target, sha: sha256(Buffer.from(bytes)) };
 }
 
-export function approveJoin(actor: SessionUser, input: { userId: string; siteId: string; shiftNo: number; managerId: string; role?: string; employeeNo?: string; photo?: Uint8Array }) {
+function projectByName(companyId: string, actorId: string, siteId: string | undefined, projectName: string | undefined) {
+  if (siteId) {
+    const site = one<{ id: string }>("SELECT id FROM sites WHERE id = ? AND company_id = ? AND kind IN ('COMPLEX', 'SITE') AND active = 1", siteId, companyId);
+    if (site) return site.id;
+  }
+  const name = (projectName ?? "").trim();
+  if (name.length < 2 || name.length > 80) return null;
+  const existing = one<{ id: string }>(
+    "SELECT id FROM sites WHERE company_id = ? AND kind IN ('COMPLEX', 'SITE') AND active = 1 AND name_ar = ? ORDER BY kind LIMIT 1",
+    companyId,
+    name,
+  );
+  if (existing) return existing.id;
+  const id = crypto.randomUUID();
+  run(
+    "INSERT INTO sites (id, company_id, parent_id, kind, name_ar, name_en, city, latitude, longitude, radius_m, active) VALUES (?, ?, NULL, 'COMPLEX', ?, ?, NULL, NULL, NULL, NULL, 1)",
+    id,
+    companyId,
+    name,
+    name,
+  );
+  audit(companyId, actorId, "place.add", "site", id, { name, from: "join" });
+  return id;
+}
+
+function linkedUser(companyId: string, role: "SECURITY_MANAGER" | "SUPERVISOR", managerId: string | undefined, linkText: string | undefined) {
+  if (managerId) {
+    const byId = one<{ id: string; shift_no: number | null }>(
+      "SELECT id, shift_no FROM users WHERE id = ? AND company_id = ? AND role = ? AND status = 'ACTIVE'",
+      managerId,
+      companyId,
+      role,
+    );
+    if (byId) return byId;
+  }
+  const text = (linkText ?? "").trim();
+  if (!text) return null;
+  const byNo = one<{ id: string; shift_no: number | null }>(
+    "SELECT id, shift_no FROM users WHERE company_id = ? AND role = ? AND status = 'ACTIVE' AND employee_no = ?",
+    companyId,
+    role,
+    text,
+  );
+  if (byNo) return byNo;
+  const byName = many<{ id: string; shift_no: number | null }>(
+    "SELECT id, shift_no FROM users WHERE company_id = ? AND role = ? AND status = 'ACTIVE' AND name_ar = ?",
+    companyId,
+    role,
+    text,
+  );
+  return byName.length === 1 ? byName[0] : null;
+}
+
+export function approveJoin(actor: SessionUser, input: { userId: string; siteId?: string; projectName?: string; shiftNo: number; managerId?: string; linkText?: string; role?: string; employeeNo?: string; photo?: Uint8Array }) {
   if (!canApproveJoin(actor) || !actor.companyId) return { error: "err_permission" as const };
   const role: JoinRole = joinRoles.includes(input.role as JoinRole) ? (input.role as JoinRole) : "GUARD";
   if (role !== "GUARD" && actor.role !== "TECH_ADMIN") return { error: "err_permission" as const };
@@ -121,22 +174,18 @@ export function approveJoin(actor: SessionUser, input: { userId: string; siteId:
     return { employeeNo };
   };
   if (role === "HR") return activate(`H-${stamp}`, null, null, null);
-  const site = one<{ id: string }>("SELECT id FROM sites WHERE id = ? AND company_id = ? AND kind IN ('COMPLEX', 'SITE') AND active = 1", input.siteId, actor.companyId);
-  if (!site) return { error: "err_join" as const };
-  if (role === "SECURITY_MANAGER") return activate(`S-${stamp}`, site.id, null, null);
+  const siteId = projectByName(actor.companyId, actor.id, input.siteId, input.projectName);
+  if (!siteId) return { error: "err_join" as const };
+  if (role === "SECURITY_MANAGER") return activate(`S-${stamp}`, siteId, null, null);
   if (role === "SUPERVISOR") {
     if (![1, 2, 3].includes(input.shiftNo)) return { error: "err_join" as const };
-    const manager = one<{ id: string }>("SELECT id FROM users WHERE id = ? AND company_id = ? AND role = 'SECURITY_MANAGER' AND status = 'ACTIVE'", input.managerId, actor.companyId);
-    if (!manager) return { error: "err_join" as const };
-    return activate(`P-${stamp}`, site.id, input.shiftNo, manager.id);
+    const manager = linkedUser(actor.companyId, "SECURITY_MANAGER", input.managerId, input.linkText);
+    if (!manager) return { error: "err_link" as const };
+    return activate(`P-${stamp}`, siteId, input.shiftNo, manager.id);
   }
-  const supervisor = one<{ id: string; shift_no: number | null }>(
-    "SELECT id, shift_no FROM users WHERE id = ? AND company_id = ? AND role = 'SUPERVISOR' AND status = 'ACTIVE'",
-    input.managerId,
-    actor.companyId,
-  );
-  if (!supervisor || supervisor.shift_no == null) return { error: "err_join" as const };
-  return activate(`G-${stamp}`, site.id, supervisor.shift_no, supervisor.id);
+  const supervisor = linkedUser(actor.companyId, "SUPERVISOR", input.managerId, input.linkText);
+  if (!supervisor || supervisor.shift_no == null) return { error: "err_link" as const };
+  return activate(`G-${stamp}`, siteId, supervisor.shift_no, supervisor.id);
 }
 
 export function resetPassword(actor: SessionUser, userId: string, password: string) {

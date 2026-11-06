@@ -7,7 +7,8 @@ import { currentUser, resetPasswordAction } from "@/server/actions";
 const notes: Record<string, string> = {
   ok: "تم تنفيذ الإجراء.",
   err_password: "كلمة المرور ١٠ أحرف على الأقل، وفيها حرف ورقم.",
-  err_join: "راجع الرقم الوظيفي والربط. الرقم لا يتكرر داخل الشركة.",
+  err_join: "راجع الرقم الوظيفي واسم المشروع. الرقم لا يتكرر داخل الشركة، واسم المشروع حرفان على الأقل.",
+  err_link: "لم أجد الشخص في خانة الربط. اكتب رقمه الوظيفي، أو اسمه إذا لم يتكرر.",
   err_file_type: "الصورة يجب أن تكون JPEG أو PNG.",
 };
 
@@ -16,9 +17,6 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
   const query = await searchParams;
   if (!user?.companyId || !canApproveJoin(user)) return <p>قبول الموظفين للتقني، أو لمن منحه التقني هذه الصلاحية.</p>;
   const pending = listPending(user);
-  const sites = many<{ id: string; name_ar: string }>("SELECT id, name_ar FROM sites WHERE company_id = ? AND kind IN ('COMPLEX', 'SITE') AND active = 1 ORDER BY name_ar", user.companyId);
-  const managers = many<{ id: string; name_ar: string }>("SELECT id, name_ar FROM users WHERE company_id = ? AND role = 'SECURITY_MANAGER' AND status = 'ACTIVE'", user.companyId);
-  const supervisors = many<{ id: string; name_ar: string; shift_no: number | null }>("SELECT id, name_ar, shift_no FROM users WHERE company_id = ? AND role = 'SUPERVISOR' AND status = 'ACTIVE'", user.companyId);
   const staff = user.role === "TECH_ADMIN"
     ? many<{ id: string; name_ar: string; role: "HR" | "SECURITY_MANAGER" | "SUPERVISOR" | "GUARD"; employee_no: string | null }>(
         "SELECT id, name_ar, role, employee_no FROM users WHERE company_id = ? AND status = 'ACTIVE' AND id != ? ORDER BY name_ar",
@@ -29,11 +27,11 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
   return (
     <section>
       <h1 className="text-2xl font-semibold">طلبات الانضمام</h1>
-      <p className="mt-2 max-w-2xl text-sm leading-7 text-ink/70">الطلب يظهر بالاسم والبريد. اضغط قبول لتفتح خانات الرقم الوظيفي والمسمى والربط، والصورة اختيارية. الرفض يغلق الطلب.</p>
+      <p className="mt-2 max-w-2xl text-sm leading-7 text-ink/70">الطلب يظهر بالاسم والبريد. اضغط قبول ثم اكتب الرقم الوظيفي واسم المشروع. الربط يُكتب للحارس وللمشرف فقط: رقم الشخص أو اسمه. مدير الأمن والموارد لا يحتاجان ربطاً. الصورة اختيارية من زر إرفاق.</p>
       {query.e ? <p className="mt-3 text-sm">{notes[query.e] ?? `تعذر التنفيذ: ${query.e}`}</p> : null}
       <ul className="mt-4 space-y-4">
         {pending.map((person) => (
-          <JoinReview key={person.id} person={person} isTech={user.role === "TECH_ADMIN"} sites={sites} managers={managers} supervisors={supervisors} />
+          <JoinReview key={person.id} person={person} isTech={user.role === "TECH_ADMIN"} />
         ))}
       </ul>
       {!pending.length ? <p className="mt-4 text-sm">لا توجد طلبات معلّقة.</p> : null}
