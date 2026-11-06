@@ -1,8 +1,9 @@
 import { many, one } from "@/lib/db";
 import { grantedCapabilities, hasCapability } from "@/lib/grants";
 import { listPoints, teamPostings, todayPosting } from "@/lib/posts";
+import { canOpenPayroll } from "@/lib/payroll";
 import { riyadhParts } from "@/lib/time";
-import { capabilityAction, currentUser, directAction, fenceAction, placeAction, pointAction } from "@/server/actions";
+import { capabilityAction, currentUser, directAction, fenceAction, placeAction, pointAction, requestPayrollAction } from "@/server/actions";
 
 const roles: Record<string, string> = {
   PLATFORM_ADMIN: "مدير المنصة",
@@ -47,6 +48,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       <p className="mt-2 text-ink/70">{roles[user.role]}</p>
       {query.e && query.e !== "ok" ? <p className="mt-3 text-sm">تعذر التنفيذ: {query.e}</p> : null}
       {query.e === "ok" ? <p className="mt-3 text-sm">تم الحفظ.</p> : null}
+      {query.e === "payroll" ? <p className="mt-3 text-sm">وصل طلب المسير إلى مشرف ورديتك.</p> : null}
       {posting ? (
         <p className="mt-4 rounded-2xl bg-teal px-4 py-4 text-lg text-white">توجهك اليوم: {posting.label} · {posting.site_name}</p>
       ) : null}
@@ -54,7 +56,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       {user.role === "SECURITY_MANAGER" ? <ManagerStats companyId={user.companyId} today={today} /> : null}
       {user.role === "HR" ? <HrHome companyId={user.companyId} /> : null}
       {user.role === "GUARD" ? (
-        <p className="mt-4 max-w-xl text-sm leading-7 text-ink/70">الحضور يثبت الدوام والغياب. بعد الحضور صوّر وصولك داخل مسافة الموقع، ثم استلم العهدة من صفحتها.</p>
+        <div className="mt-4 max-w-xl">
+          <p className="text-sm leading-7 text-ink/70">الحضور يثبت الدوام والغياب. بعد الحضور صوّر وصولك داخل مسافة الموقع، ثم استلم العهدة من صفحتها.</p>
+          {canOpenPayroll(user) ? <p className="mt-3 text-sm">مسير هذه الفترة صدر، وهو في قائمة المسير.</p> : (
+            <form action={requestPayrollAction} className="mt-3">
+              <button className="rounded-xl border border-line bg-card px-3 py-2 text-sm" type="submit">طلب مسير هذه الفترة</button>
+            </form>
+          )}
+        </div>
       ) : null}
 
       {user.role === "SUPERVISOR" ? (

@@ -39,7 +39,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
                   {date ? (
                     <>
                       <span className="font-medium">{date.slice(5)}</span>
-                      <select name={`day:${date}`} defaultValue={row.days[date] === "REST" ? "REST" : "DUTY"} className="mt-1 w-full bg-transparent">
+                      <select name={`day:${date}`} defaultValue={row.days[date]?.mark === "REST" ? "REST" : "DUTY"} className="mt-1 w-full bg-transparent">
                         <option value="DUTY">دوام</option>
                         <option value="REST">راحة</option>
                       </select>

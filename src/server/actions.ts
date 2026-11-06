@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { can, login, revoke, sessionUser } from "@/lib/auth";
 import { sha256 } from "@/lib/crypto";
 import { enrollFace, matchFace } from "@/lib/face";
-import { parseScheduleCsv, saveSchedule } from "@/lib/payroll";
+import { issuePayroll, parseScheduleCsv, requestOwnPayroll, saveSchedule } from "@/lib/payroll";
 import { addPlace, addWorkSite, companyChains, createLeave, decideLeave, recordArrival, recordPunch, setSiteFence } from "@/lib/ops";
 import { cancelTask, closeTask, createTask, submitTask, suspendEmployee } from "@/lib/tasks";
 import { acknowledgeAlert, addBan, addVehicle, cancelCustody, childReports, grantAlertClose, openAlerts, raiseAlert, receiveCustody, recordPaperPermit, recordVehicleIn, returnRadio, revokeAlertClose, startCustody } from "@/lib/field";
@@ -183,6 +183,21 @@ export async function scheduleAction(formData: FormData) {
   const result = saveSchedule(user, String(formData.get("userId") ?? ""), entries);
   const target = String(formData.get("userId") ?? "");
   redirect(`/app/schedule?user=${target}&e=${"error" in result ? "err" : "ok"}`);
+}
+
+export async function issuePayrollAction(formData: FormData) {
+  const user = await currentUser();
+  if (!user) redirect("/enter");
+  const ids = formData.getAll("userId").map((value) => String(value));
+  const result = issuePayroll(user, ids);
+  redirect(`/app/payroll?e=${"error" in result ? result.error : "ok"}`);
+}
+
+export async function requestPayrollAction() {
+  const user = await currentUser();
+  if (!user) redirect("/enter");
+  const result = requestOwnPayroll(user);
+  redirect(`/app?e=${"error" in result ? result.error : "payroll"}`);
 }
 
 export async function taskAction(formData: FormData) {

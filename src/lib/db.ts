@@ -31,7 +31,7 @@ export type UserRow = {
   auth_rev: number;
 };
 
-const schemaVersion = 10;
+const schemaVersion = 11;
 const globalDb = globalThis as unknown as { __kafaaDb?: DatabaseSync; __kafaaSchema?: number; __kafaaTech?: boolean };
 
 export function db() {
@@ -408,6 +408,23 @@ function migrate(database: DatabaseSync) {
     database.exec("ALTER TABLE alerts ADD COLUMN photo_path TEXT");
     database.exec("ALTER TABLE alerts ADD COLUMN photo_sha TEXT");
   }
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS payroll_releases (
+      company_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      period_start TEXT NOT NULL,
+      issued_at TEXT NOT NULL,
+      issued_by TEXT NOT NULL,
+      PRIMARY KEY (company_id, user_id, period_start)
+    );
+    CREATE TABLE IF NOT EXISTS payroll_requests (
+      company_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      period_start TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (company_id, user_id, period_start)
+    );
+  `);
   database.exec(`
     CREATE TABLE IF NOT EXISTS capabilities (
       company_id TEXT NOT NULL,

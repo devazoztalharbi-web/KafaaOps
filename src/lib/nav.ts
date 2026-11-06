@@ -1,4 +1,5 @@
 import { canApproveJoin } from "./join";
+import { canOpenPayroll } from "./payroll";
 import type { SessionUser } from "./auth";
 
 export const roleTitle: Record<SessionUser["role"], string> = {
@@ -42,9 +43,11 @@ export function allowedPaths(user: SessionUser) {
 
 export function navigation(user: SessionUser) {
   const paths = allowedPaths(user);
+  if (canOpenPayroll(user)) paths.add("/app/payroll");
   return catalog.filter((item) => paths.has(item.href));
 }
 
 export function pathAllowed(user: SessionUser, path: string) {
+  if (path === "/app/payroll" || path.startsWith("/app/payroll/")) return canOpenPayroll(user);
   return [...allowedPaths(user)].some((href) => (href === "/app" ? path === "/app" : path === href || path.startsWith(`${href}/`)));
 }

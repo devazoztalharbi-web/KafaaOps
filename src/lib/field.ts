@@ -521,10 +521,18 @@ export function raiseAlert(actor: SessionUser, input: { kind: string; body: stri
 }
 
 export function openAlerts(companyId: string) {
-  return many<{ id: string; kind: string; body: string; created_at: string; name_ar: string; employee_no: string | null; photo_path: string | null }>(
-    `SELECT alerts.id, alerts.kind, alerts.body, alerts.created_at, alerts.photo_path, users.name_ar, users.employee_no
-     FROM alerts JOIN users ON users.id = alerts.user_id
-     WHERE alerts.company_id = ? AND alerts.status = 'OPEN' AND alerts.kind != 'CHILD' ORDER BY alerts.created_at DESC`,
+  const today = riyadhParts().date;
+  return many<{ id: string; kind: string; body: string; created_at: string; name_ar: string; employee_no: string | null; photo_path: string | null; place_label: string | null; place_site: string | null }>(
+    `SELECT alerts.id, alerts.kind, alerts.body, alerts.created_at, alerts.photo_path, users.name_ar, users.employee_no,
+            site_points.label AS place_label, sites.name_ar AS place_site
+     FROM alerts
+     JOIN users ON users.id = alerts.user_id
+     LEFT JOIN postings ON postings.company_id = alerts.company_id AND postings.user_id = alerts.user_id AND postings.duty_date = ?
+     LEFT JOIN site_points ON site_points.id = postings.point_id
+     LEFT JOIN sites ON sites.id = site_points.site_id
+     WHERE alerts.company_id = ? AND alerts.status = 'OPEN' AND alerts.kind != 'CHILD'
+     ORDER BY alerts.created_at DESC`,
+    today,
     companyId,
   );
 }

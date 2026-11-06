@@ -74,6 +74,7 @@ export function movement(companyId: string, now = new Date()) {
         const punch = shift
           ? punches.find((item) => item.user_id === person.id && dutyDateFor(new Date(item.server_time), shift.start_minute, shift.end_minute) === date)
           : undefined;
+        const arrived = punch && shift ? lateness(new Date(punch.server_time), date, shift.start_minute, shift.grace_minute) : null;
         const mark = markDay({
           schedule: scheduled === "DUTY" || scheduled === "REST" ? scheduled : null,
           onLeave,
@@ -82,12 +83,90 @@ export function movement(companyId: string, now = new Date()) {
           date,
           now,
         });
-        return [date, mark];
+        return [date, { mark, late: arrived?.status === "LATE" ? arrived.late : 0 }] as const;
       }),
-    ) as Record<string, DayMark>;
-    return { ...person, days };
+    ) as Record<string, { mark: DayMark; late: number }>;
+    const absent = Object.values(days).filter((day) => day.mark === "ABSENT").length;
+    const lateMinutes = Object.values(days).reduce((sum, day) => sum + day.late, 0);
+    return { ...person, days, absent, lateMinutes };
   });
   return { period, dates, weeks: weekRows(dates), rows };
+}
+
+export function lateLabel(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (minutes <= 0) return "0";
+  if (!hours) return `${rest} د`;
+  if (!rest) return `${hours} س`;
+  return `${hours} س ${rest} د`;
+}
+
+export function payrollReleased(companyId: string, userId: string, periodStart = periodContaining().start) {
+  return Boolean(one("SELECT user_id FROM payroll_releases WHERE company_id = ? AND user_id = ? AND period_start = ?", companyId, userId, periodStart));
+}
+
+export function canOpenPayroll(actor: SessionUser) {
+  if (!actor.companyId) return false;
+  if (["HR", "TECH_ADMIN", "SECURITY_MANAGER", "SUPERVISOR"].includes(actor.role)) return true;
+  return actor.role === "GUARD" && payrollReleased(actor.companyId, actor.id);
+}
+
+export function issuePayroll(actor: SessionUser, userIds: string[]) {
+  if (!actor.companyId || !["SUPERVISOR", "TECH_ADMIN", "SECURITY_MANAGER", "HR"].includes(actor.role)) return { error: "err_permission" as const };
+  const period = periodContaining();
+  const now = new Date().toISOString();
+  let count = 0;
+  for (const userId of userIds) {
+    const person = one<Person>("SELECT id, name_ar, employee_no, role, shift_no, manager_id FROM users WHERE id = ? AND company_id = ? AND status = 'ACTIVE'", userId, actor.companyId);
+    if (!person || (person.role !== "GUARD" && person.role !== "SUPERVISOR")) continue;
+    if (actor.role === "SUPERVISOR" && person.id !== actor.id && person.manager_id !== actor.id) continue;
+    run(
+      `INSERT INTO payroll_releases (company_id, user_id, period_start, issued_at, issued_by) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(company_id, user_id, period_start) DO UPDATE SET issued_at = excluded.issued_at, issued_by = excluded.issued_by`,
+      actor.companyId,
+      person.id,
+      period.start,
+      now,
+      actor.id,
+    );
+    count += 1;
+    run("DELETE FROM payroll_requests WHERE company_id = ? AND user_id = ? AND period_start = ?", actor.companyId, person.id, period.start);
+  }
+  if (!count) return { error: "err_permission" as const };
+  audit(actor.companyId, actor.id, "payroll.issue", "company", actor.companyId, { count, period: period.start });
+  return { count };
+}
+
+export function requestOwnPayroll(actor: SessionUser) {
+  if (!actor.companyId || actor.role !== "GUARD") return { error: "err_permission" as const };
+  const period = periodContaining();
+  if (payrollReleased(actor.companyId, actor.id, period.start)) return { count: 1 };
+  run(
+    `INSERT INTO payroll_requests (company_id, user_id, period_start, created_at) VALUES (?, ?, ?, ?)
+     ON CONFLICT(company_id, user_id, period_start) DO NOTHING`,
+    actor.companyId,
+    actor.id,
+    period.start,
+    new Date().toISOString(),
+  );
+  audit(actor.companyId, actor.id, "payroll.request", "user", actor.id, { period: period.start });
+  return { count: 1 };
+}
+
+export function payrollRequests(actor: SessionUser) {
+  if (!actor.companyId || actor.role !== "SUPERVISOR") return [];
+  const period = periodContaining();
+  return many<{ id: string; name_ar: string; employee_no: string | null }>(
+    `SELECT users.id, users.name_ar, users.employee_no
+     FROM payroll_requests
+     JOIN users ON users.id = payroll_requests.user_id
+     WHERE payroll_requests.company_id = ? AND payroll_requests.period_start = ? AND users.manager_id = ?
+     ORDER BY users.name_ar`,
+    actor.companyId,
+    period.start,
+    actor.id,
+  );
 }
 
 export function saveSchedule(actor: SessionUser, userId: string, entries: Array<{ date: string; kind: string }>) {

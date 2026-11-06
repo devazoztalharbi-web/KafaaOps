@@ -66,8 +66,8 @@ const fridays = sheet.dates.filter((date) => new Date(`${date}T12:00:00+03:00`).
 const guardRow = sheet.rows.find((row) => row.id === guard.user.id);
 check(
   "seed fridays stay rest on the sheet",
-  Boolean(guardRow) && fridays.every((date) => guardRow?.days[date] === "REST"),
-  fridays.map((date) => guardRow?.days[date]).join(","),
+  Boolean(guardRow) && fridays.every((date) => guardRow?.days[date]?.mark === "REST"),
+  fridays.map((date) => guardRow?.days[date]?.mark).join(","),
 );
 check("sheet period is 21 to 20", sheet.period.start.endsWith("-21") && sheet.period.end.endsWith("-20"), `${sheet.period.start} ${sheet.period.end}`);
 

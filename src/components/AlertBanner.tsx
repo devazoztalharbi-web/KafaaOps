@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { acknowledgeAction, listAlerts } from "@/server/actions";
 
-type AlertRow = { id: string; kind: string; body: string; created_at: string; name_ar: string; employee_no: string | null; photo_path: string | null };
+type AlertRow = { id: string; kind: string; body: string; created_at: string; name_ar: string; employee_no: string | null; photo_path: string | null; place_label: string | null; place_site: string | null };
 
 export function AlertBanner({ canClose }: { canClose: boolean }) {
   const [rows, setRows] = useState<AlertRow[]>([]);
@@ -53,9 +53,10 @@ export function AlertBanner({ canClose }: { canClose: boolean }) {
       <div className="mx-auto flex max-w-5xl flex-col gap-3 px-5 py-3 text-sm">
         {rows.length ? rows.map((row) => (
           <article key={row.id} className="flex flex-wrap items-start gap-3 rounded-2xl bg-white p-3 text-ink">
-            <div className="min-w-28 rounded-xl bg-red-700 px-3 py-2 text-center text-white">
+            <div className="min-w-36 rounded-xl bg-red-700 px-3 py-2 text-center text-white">
               <p className="text-xs">بلاغ طارئ</p>
-              <p className="mt-1 text-lg font-semibold">{row.employee_no ?? "بدون رقم"}</p>
+              <p className="mt-1 text-lg font-semibold">{row.place_label ?? "بدون توجيه"}</p>
+              <p className="text-xs">{row.place_site ?? "لم يُحدد موقع اليوم"}</p>
             </div>
             <div className="min-w-0 flex-1">
               <p className="font-semibold">{row.name_ar}</p>
