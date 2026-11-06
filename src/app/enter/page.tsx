@@ -1,23 +1,30 @@
 import Link from "next/link";
 import { loginAction } from "@/server/actions";
-import { developer } from "@/lib/developer";
+
+const messages: Record<string, string> = {
+  err_pending: "طلبك بانتظار قبول التقني أو من منحه صلاحية القبول.",
+  err_rejected: "تم رفض طلب الانضمام.",
+  err_bad_login: "البريد أو كلمة المرور غير صحيحة.",
+  err_locked: "الحساب مقفل مؤقتاً بعد محاولات متكررة. انتظر ثم أعد المحاولة.",
+};
 
 export default async function EnterPage({ searchParams }: { searchParams: Promise<{ e?: string }> }) {
   const query = await searchParams;
+  const note = query.e ? messages[query.e] ?? messages.err_bad_login : null;
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-5">
-      <p className="text-sm text-copper">KafaaOps</p>
-      <h1 className="mt-1 text-3xl font-semibold">دخول النظام</h1>
-      <p className="mt-2 text-sm text-ink/70">{developer.roleAr}: {developer.nameAr}</p>
-      {query.e === "err_pending" ? <p className="mt-4 rounded-xl bg-white px-3 py-2 text-sm">طلبك بانتظار قبول التقني أو من منحه صلاحية القبول.</p> : null}
-      {query.e === "err_rejected" ? <p className="mt-4 rounded-xl bg-white px-3 py-2 text-sm">تم رفض طلب الانضمام.</p> : null}
-      {query.e && query.e !== "err_pending" && query.e !== "err_rejected" ? <p className="mt-4 rounded-xl bg-white px-3 py-2 text-sm">بيانات الدخول غير صحيحة، أو الحساب مقفل مؤقتاً.</p> : null}
+      <p className="text-sm tracking-[0.16em] text-copper">KafaaOps</p>
+      <h1 className="mt-2 text-3xl font-semibold">تسجيل الدخول</h1>
+      <p className="mt-2 text-sm leading-7 text-ink/70">ادخل بالبريد وكلمة المرور. كل منصب يدخل بحسابه: التقني، مدير الأمن، المشرف، الحارس، والموارد البشرية.</p>
+      {note ? <p className="mt-4 rounded-xl bg-card px-3 py-2 text-sm">{note}</p> : null}
       <form action={loginAction} className="mt-6 space-y-3">
-        <input name="email" type="email" required placeholder="البريد" className="w-full rounded-xl border border-line bg-card px-3 py-3" />
-        <input name="password" type="password" required placeholder="كلمة المرور" className="w-full rounded-xl border border-line bg-card px-3 py-3" />
-        <button className="w-full rounded-xl bg-ink px-3 py-3 text-paper" type="submit">دخول</button>
+        <label className="block text-sm font-semibold" htmlFor="email">البريد الإلكتروني</label>
+        <input id="email" name="email" type="email" required autoComplete="username" placeholder="name@company.sa" className="w-full rounded-xl border border-line bg-card px-3 py-3" />
+        <label className="block text-sm font-semibold" htmlFor="password">كلمة المرور</label>
+        <input id="password" name="password" type="password" required autoComplete="current-password" placeholder="كلمة المرور" className="w-full rounded-xl border border-line bg-card px-3 py-3" />
+        <button className="w-full rounded-xl bg-ink px-3 py-3 text-paper" type="submit">تسجيل الدخول</button>
       </form>
-      <Link href="/join" className="mt-4 text-sm text-teal">طلب انضمام جديد</Link>
+      <Link href="/join" className="mt-5 text-sm text-teal">تسجيل حساب جديد</Link>
       <Link href="/" className="mt-2 text-sm text-teal">العودة للواجهة الرئيسية</Link>
     </main>
   );
